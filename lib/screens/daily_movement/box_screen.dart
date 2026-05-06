@@ -102,6 +102,9 @@ class _BoxScreenState extends State<BoxScreen> {
   double? _calculatedRemaining;
   String _lastAccountName = '';
 
+  List<SuggestionItem> _customerSuggestionItems = [];
+  List<SuggestionItem> _supplierSuggestionItems = [];
+
   @override
   void initState() {
     super.initState();
@@ -1628,61 +1631,112 @@ class _BoxScreenState extends State<BoxScreen> {
   void _updateCustomerSuggestions(int rowIndex) async {
     final query = rowControllers[rowIndex][3].text;
     if (query.length >= 1 && accountTypeValues[rowIndex] == 'زبون') {
-      final suggestions =
-          await getEnhancedSuggestions(_customerIndexService, query);
-      setState(() {
-        _customerSuggestions = suggestions;
-        _activeCustomerRowIndex = rowIndex;
-        _toggleFullScreenSuggestions(
-            type: 'customer', show: suggestions.isNotEmpty);
-      });
+      final allWithNumbers =
+          await _customerIndexService.getAllCustomersWithNumbers();
+      final normalizedQuery = query.toLowerCase().trim();
+
+      List<SuggestionItem> displaySuggestions = [];
+
+      if (RegExp(r'^\d+$').hasMatch(query.trim())) {
+        final int? queryNumber = int.tryParse(query.trim());
+        if (queryNumber != null && allWithNumbers.containsKey(queryNumber)) {
+          displaySuggestions = [
+            SuggestionItem(
+                number: queryNumber, name: allWithNumbers[queryNumber]!)
+          ];
+        }
+      } else {
+        displaySuggestions = allWithNumbers.entries
+            .where((e) => e.value.toLowerCase().contains(normalizedQuery))
+            .map((e) => SuggestionItem(number: e.key, name: e.value))
+            .toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _customerSuggestionItems = displaySuggestions;
+          _customerSuggestions =
+              displaySuggestions.map((e) => e.displayName).toList();
+          _activeCustomerRowIndex = rowIndex;
+          _toggleFullScreenSuggestions(
+              type: 'customer', show: displaySuggestions.isNotEmpty);
+        });
+      }
     } else {
-      setState(() {
-        _customerSuggestions = [];
-        _activeCustomerRowIndex = null;
-      });
+      if (mounted) {
+        setState(() {
+          _customerSuggestions = [];
+          _customerSuggestionItems = [];
+          _activeCustomerRowIndex = null;
+          _toggleFullScreenSuggestions(type: 'customer', show: false);
+        });
+      }
     }
   }
 
-// تحديث اقتراحات الموردين
   void _updateSupplierSuggestions(int rowIndex) async {
     final query = rowControllers[rowIndex][3].text;
     if (query.length >= 1 && accountTypeValues[rowIndex] == 'مورد') {
-      final suggestions =
-          await getEnhancedSuggestions(_supplierIndexService, query);
-      setState(() {
-        _supplierSuggestions = suggestions;
-        _activeSupplierRowIndex = rowIndex;
-        _toggleFullScreenSuggestions(
-            type: 'supplier', show: suggestions.isNotEmpty);
-      });
+      final allWithNumbers =
+          await _supplierIndexService.getAllSuppliersWithNumbers();
+      final normalizedQuery = query.toLowerCase().trim();
+
+      List<SuggestionItem> displaySuggestions = [];
+
+      if (RegExp(r'^\d+$').hasMatch(query.trim())) {
+        final int? queryNumber = int.tryParse(query.trim());
+        if (queryNumber != null && allWithNumbers.containsKey(queryNumber)) {
+          displaySuggestions = [
+            SuggestionItem(
+                number: queryNumber, name: allWithNumbers[queryNumber]!)
+          ];
+        }
+      } else {
+        displaySuggestions = allWithNumbers.entries
+            .where((e) => e.value.toLowerCase().contains(normalizedQuery))
+            .map((e) => SuggestionItem(number: e.key, name: e.value))
+            .toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _supplierSuggestionItems = displaySuggestions;
+          _supplierSuggestions =
+              displaySuggestions.map((e) => e.displayName).toList();
+          _activeSupplierRowIndex = rowIndex;
+          _toggleFullScreenSuggestions(
+              type: 'supplier', show: displaySuggestions.isNotEmpty);
+        });
+      }
     } else {
-      // إخفاء الاقتراحات إذا كان الحقل فارغاً أو نوع الحساب ليس مورد
-      setState(() {
-        _supplierSuggestions = [];
-        _activeSupplierRowIndex = null;
-      });
+      if (mounted) {
+        setState(() {
+          _supplierSuggestions = [];
+          _supplierSuggestionItems = [];
+          _activeSupplierRowIndex = null;
+          _toggleFullScreenSuggestions(type: 'supplier', show: false);
+        });
+      }
     }
   }
 
-  // اختيار اقتراح للزبون
   void _selectCustomerSuggestion(String suggestion, int rowIndex) {
     setState(() {
       _customerSuggestions = [];
+      _customerSuggestionItems = [];
       _activeCustomerRowIndex = null;
       _showFullScreenSuggestions = false;
       _currentSuggestionType = '';
     });
 
-    // 1. وضع الاسم الكامل في الحقل
-    rowControllers[rowIndex][3].text = suggestion;
+    final actualName = _extractNameFromSuggestion(suggestion);
+    rowControllers[rowIndex][3].text = actualName;
     _hasUnsavedChanges = true;
 
-    if (suggestion.trim().length > 1) {
-      _saveCustomerToIndex(suggestion);
+    if (actualName.trim().length > 1) {
+      _customerIndexService.saveCustomer(actualName.trim());
     }
 
-    // 2. تحديث شريط الرصيد فوراً بناءً على الاسم الكامل الجديد
     _fetchAndCalculateBalance(rowIndex);
 
     Future.delayed(const Duration(milliseconds: 50), () {
@@ -1692,24 +1746,23 @@ class _BoxScreenState extends State<BoxScreen> {
     });
   }
 
-  // اختيار اقتراح للمورد
   void _selectSupplierSuggestion(String suggestion, int rowIndex) {
     setState(() {
       _supplierSuggestions = [];
+      _supplierSuggestionItems = [];
       _activeSupplierRowIndex = null;
       _showFullScreenSuggestions = false;
       _currentSuggestionType = '';
     });
 
-    // 1. وضع الاسم الكامل في الحقل
-    rowControllers[rowIndex][3].text = suggestion;
+    final actualName = _extractNameFromSuggestion(suggestion);
+    rowControllers[rowIndex][3].text = actualName;
     _hasUnsavedChanges = true;
 
-    if (suggestion.trim().length > 1) {
-      _saveSupplierToIndex(suggestion);
+    if (actualName.trim().length > 1) {
+      _supplierIndexService.saveSupplier(actualName.trim());
     }
 
-    // 2. تحديث شريط الرصيد فوراً بناءً على الاسم الكامل الجديد
     _fetchAndCalculateBalance(rowIndex);
 
     Future.delayed(const Duration(milliseconds: 50), () {
@@ -1745,12 +1798,12 @@ class _BoxScreenState extends State<BoxScreen> {
     }
   }
 
-  List<String> _getSuggestionsByType() {
+  List<SuggestionItem> _getSuggestionsByType() {
     switch (_currentSuggestionType) {
       case 'supplier':
-        return _supplierSuggestions;
+        return _supplierSuggestionItems;
       case 'customer':
-        return _customerSuggestions;
+        return _customerSuggestionItems;
       default:
         return [];
     }
@@ -2073,6 +2126,14 @@ class _BoxScreenState extends State<BoxScreen> {
               fontSize: 10,
               fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal)),
     );
+  }
+
+  String _extractNameFromSuggestion(String suggestion) {
+    final dotIndex = suggestion.indexOf('. ');
+    if (dotIndex != -1 && dotIndex + 2 < suggestion.length) {
+      return suggestion.substring(dotIndex + 2).trim();
+    }
+    return suggestion.trim();
   }
 }
 

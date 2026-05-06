@@ -89,6 +89,10 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
   List<String> _packagingSuggestions = [];
   List<String> _supplierSuggestions = [];
 
+  List<SuggestionItem> _materialSuggestionItems = [];
+  List<SuggestionItem> _packagingSuggestionItems = [];
+  List<SuggestionItem> _supplierSuggestionItems = [];
+
   // مؤشرات الصفوف النشطة للاقتراحات
   int? _activeMaterialRowIndex;
   int? _activePackagingRowIndex;
@@ -350,80 +354,150 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
   void _updateMaterialSuggestions(int rowIndex) async {
     final query = rowControllers[rowIndex][1].text;
     if (query.length >= 1) {
-      final suggestions =
-          await getEnhancedSuggestions(_materialIndexService, query);
-      setState(() {
-        _materialSuggestions = suggestions;
-        _activeMaterialRowIndex = rowIndex;
-        _toggleFullScreenSuggestions(
-            type: 'material', show: suggestions.isNotEmpty);
-      });
+      final allWithNumbers =
+          await _materialIndexService.getAllMaterialsWithNumbers();
+      final normalizedQuery = query.toLowerCase().trim();
+
+      List<SuggestionItem> displaySuggestions = [];
+
+      if (RegExp(r'^\d+$').hasMatch(query.trim())) {
+        final int? queryNumber = int.tryParse(query.trim());
+        if (queryNumber != null && allWithNumbers.containsKey(queryNumber)) {
+          displaySuggestions = [
+            SuggestionItem(
+                number: queryNumber, name: allWithNumbers[queryNumber]!)
+          ];
+        }
+      } else {
+        displaySuggestions = allWithNumbers.entries
+            .where((e) => e.value.toLowerCase().contains(normalizedQuery))
+            .map((e) => SuggestionItem(number: e.key, name: e.value))
+            .toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _materialSuggestionItems = displaySuggestions;
+          _materialSuggestions =
+              displaySuggestions.map((e) => e.displayName).toList();
+          _activeMaterialRowIndex = rowIndex;
+          _toggleFullScreenSuggestions(
+              type: 'material', show: displaySuggestions.isNotEmpty);
+        });
+      }
     } else {
-      // إخفاء الاقتراحات إذا كان الحقل فارغاً
-      setState(() {
-        _materialSuggestions = [];
-        _activeMaterialRowIndex = null;
-      });
+      if (mounted) {
+        setState(() {
+          _materialSuggestions = [];
+          _materialSuggestionItems = [];
+          _activeMaterialRowIndex = null;
+          _toggleFullScreenSuggestions(type: 'material', show: false);
+        });
+      }
     }
   }
 
-// تحديث اقتراحات العبوة
   void _updatePackagingSuggestions(int rowIndex) async {
     final query = rowControllers[rowIndex][4].text;
     if (query.length >= 1) {
-      final suggestions =
-          await getEnhancedSuggestions(_packagingIndexService, query);
-      setState(() {
-        _packagingSuggestions = suggestions;
-        _activePackagingRowIndex = rowIndex;
-        _toggleFullScreenSuggestions(
-            type: 'packaging', show: suggestions.isNotEmpty);
-      });
+      final allWithNumbers =
+          await _packagingIndexService.getAllPackagingsWithNumbers();
+      final normalizedQuery = query.toLowerCase().trim();
+
+      List<SuggestionItem> displaySuggestions = [];
+
+      if (RegExp(r'^\d+$').hasMatch(query.trim())) {
+        final int? queryNumber = int.tryParse(query.trim());
+        if (queryNumber != null && allWithNumbers.containsKey(queryNumber)) {
+          displaySuggestions = [
+            SuggestionItem(
+                number: queryNumber, name: allWithNumbers[queryNumber]!)
+          ];
+        }
+      } else {
+        displaySuggestions = allWithNumbers.entries
+            .where((e) => e.value.toLowerCase().contains(normalizedQuery))
+            .map((e) => SuggestionItem(number: e.key, name: e.value))
+            .toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _packagingSuggestionItems = displaySuggestions;
+          _packagingSuggestions =
+              displaySuggestions.map((e) => e.displayName).toList();
+          _activePackagingRowIndex = rowIndex;
+          _toggleFullScreenSuggestions(
+              type: 'packaging', show: displaySuggestions.isNotEmpty);
+        });
+      }
     } else {
-      // إخفاء الاقتراحات إذا كان الحقل فارغاً
-      setState(() {
-        _packagingSuggestions = [];
-        _activePackagingRowIndex = null;
-      });
+      if (mounted) {
+        setState(() {
+          _packagingSuggestions = [];
+          _packagingSuggestionItems = [];
+          _activePackagingRowIndex = null;
+          _toggleFullScreenSuggestions(type: 'packaging', show: false);
+        });
+      }
     }
   }
 
-// تحديث اقتراحات الموردين (العائدية)
   void _updateSupplierSuggestions(int rowIndex) async {
     final query = rowControllers[rowIndex][2].text;
     if (query.length >= 1) {
-      final suggestions =
-          await getEnhancedSuggestions(_supplierIndexService, query);
-      setState(() {
-        _supplierSuggestions = suggestions;
-        _activeSupplierRowIndex = rowIndex;
-        _toggleFullScreenSuggestions(
-            type: 'supplier', show: suggestions.isNotEmpty);
-      });
+      final allWithNumbers =
+          await _supplierIndexService.getAllSuppliersWithNumbers();
+      final normalizedQuery = query.toLowerCase().trim();
+
+      List<SuggestionItem> displaySuggestions = [];
+
+      if (RegExp(r'^\d+$').hasMatch(query.trim())) {
+        final int? queryNumber = int.tryParse(query.trim());
+        if (queryNumber != null && allWithNumbers.containsKey(queryNumber)) {
+          displaySuggestions = [
+            SuggestionItem(
+                number: queryNumber, name: allWithNumbers[queryNumber]!)
+          ];
+        }
+      } else {
+        displaySuggestions = allWithNumbers.entries
+            .where((e) => e.value.toLowerCase().contains(normalizedQuery))
+            .map((e) => SuggestionItem(number: e.key, name: e.value))
+            .toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _supplierSuggestionItems = displaySuggestions;
+          _supplierSuggestions =
+              displaySuggestions.map((e) => e.displayName).toList();
+          _activeSupplierRowIndex = rowIndex;
+          _toggleFullScreenSuggestions(
+              type: 'supplier', show: displaySuggestions.isNotEmpty);
+        });
+      }
     } else {
-      // إخفاء الاقتراحات إذا كان الحقل فارغاً
-      setState(() {
-        _supplierSuggestions = [];
-        _activeSupplierRowIndex = null;
-      });
+      if (mounted) {
+        setState(() {
+          _supplierSuggestions = [];
+          _supplierSuggestionItems = [];
+          _activeSupplierRowIndex = null;
+          _toggleFullScreenSuggestions(type: 'supplier', show: false);
+        });
+      }
     }
   }
 
 // اختيار اقتراح للمادة - معدلة تماماً
   void _selectMaterialSuggestion(String suggestion, int rowIndex) {
-    // إخفاء الاقتراحات أولاً وفوراً
     _hideAllSuggestionsImmediately();
-
-    // ثم تعيين النص
-    rowControllers[rowIndex][1].text = suggestion;
+    final actualName = _extractNameFromSuggestion(suggestion);
+    rowControllers[rowIndex][1].text = actualName;
     _hasUnsavedChanges = true;
-
-    // حفظ المادة في الفهرس إذا لم تكن موجودة (مع شرط الطول)
-    if (suggestion.trim().length > 1) {
-      _saveMaterialToIndex(suggestion);
+    if (actualName.trim().length > 1) {
+      _saveMaterialToIndex(actualName);
     }
-
-    // نقل التركيز إلى الحقل التالي بعد تأخير بسيط
     Future.delayed(const Duration(milliseconds: 50), () {
       if (mounted) {
         FocusScope.of(context).requestFocus(rowFocusNodes[rowIndex][2]);
@@ -431,21 +505,14 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
     });
   }
 
-// اختيار اقتراح للعبوة - معدلة تماماً
   void _selectPackagingSuggestion(String suggestion, int rowIndex) {
-    // إخفاء الاقتراحات أولاً وفوراً
     _hideAllSuggestionsImmediately();
-
-    // ثم تعيين النص
-    rowControllers[rowIndex][4].text = suggestion;
+    final actualName = _extractNameFromSuggestion(suggestion);
+    rowControllers[rowIndex][4].text = actualName;
     _hasUnsavedChanges = true;
-
-    // حفظ العبوة في الفهرس إذا لم تكن موجودة (مع شرط الطول)
-    if (suggestion.trim().length > 1) {
-      _savePackagingToIndex(suggestion);
+    if (actualName.trim().length > 1) {
+      _savePackagingToIndex(actualName);
     }
-
-    // نقل التركيز إلى الحقل التالي بعد تأخير بسيط
     Future.delayed(const Duration(milliseconds: 50), () {
       if (mounted) {
         FocusScope.of(context).requestFocus(rowFocusNodes[rowIndex][5]);
@@ -453,21 +520,14 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
     });
   }
 
-// اختيار اقتراح للمورد (العائدية) - معدلة تماماً
   void _selectSupplierSuggestion(String suggestion, int rowIndex) {
-    // إخفاء الاقتراحات أولاً وفوراً
     _hideAllSuggestionsImmediately();
-
-    // ثم تعيين النص
-    rowControllers[rowIndex][2].text = suggestion;
+    final actualName = _extractNameFromSuggestion(suggestion);
+    rowControllers[rowIndex][2].text = actualName;
     _hasUnsavedChanges = true;
-
-    // حفظ المورد في الفهرس إذا لم يكن موجوداً (مع شرط الطول)
-    if (suggestion.trim().length > 1) {
-      _saveSupplierToIndex(suggestion);
+    if (actualName.trim().length > 1) {
+      _saveSupplierToIndex(actualName);
     }
-
-    // نقل التركيز إلى الحقل التالي بعد تأخير بسيط
     Future.delayed(const Duration(milliseconds: 50), () {
       if (mounted) {
         FocusScope.of(context).requestFocus(rowFocusNodes[rowIndex][3]);
@@ -1542,15 +1602,14 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
     }
   }
 
-  List<String> _getSuggestionsByType() {
+  List<SuggestionItem> _getSuggestionsByType() {
     switch (_currentSuggestionType) {
       case 'material':
-        return _materialSuggestions;
+        return _materialSuggestionItems;
       case 'packaging':
-        return _packagingSuggestions;
+        return _packagingSuggestionItems;
       case 'supplier':
-        return _supplierSuggestions;
-
+        return _supplierSuggestionItems;
       default:
         return [];
     }
@@ -1760,6 +1819,14 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
               fontSize: 8,
               fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal)),
     );
+  }
+
+  String _extractNameFromSuggestion(String suggestion) {
+    final dotIndex = suggestion.indexOf('. ');
+    if (dotIndex != -1 && dotIndex + 2 < suggestion.length) {
+      return suggestion.substring(dotIndex + 2).trim();
+    }
+    return suggestion.trim();
   }
 }
 

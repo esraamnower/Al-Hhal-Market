@@ -106,6 +106,10 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
   bool _isCalculating = false;
   bool _isAdmin = false;
 
+  List<SuggestionItem> _materialSuggestionItems = [];
+  List<SuggestionItem> _packagingSuggestionItems = [];
+  List<SuggestionItem> _supplierSuggestionItems = [];
+
   @override
   void initState() {
     super.initState();
@@ -316,45 +320,97 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     });
   }
 
-  // تحديث اقتراحات العبوة
-  void _updatePackagingSuggestions(int rowIndex) async {
-    final query = rowControllers[rowIndex][5].text;
-    if (query.length >= 1) {
-      final suggestions =
-          await getEnhancedSuggestions(_packagingIndexService, query);
-      setState(() {
-        _packagingSuggestions = suggestions;
-        _activePackagingRowIndex = rowIndex;
-        _toggleFullScreenSuggestions(
-            type: 'packaging', show: suggestions.isNotEmpty);
-      });
-    } else {
-      // إخفاء الاقتراحات إذا كان الحقل فارغاً
-      setState(() {
-        _packagingSuggestions = [];
-        _activePackagingRowIndex = null;
-      });
-    }
-  }
-
   // تحديث اقتراحات المادة
   void _updateMaterialSuggestions(int rowIndex) async {
     final query = rowControllers[rowIndex][1].text;
     if (query.length >= 1) {
-      final suggestions =
-          await getEnhancedSuggestions(_materialIndexService, query);
-      setState(() {
-        _materialSuggestions = suggestions;
-        _activeMaterialRowIndex = rowIndex;
-        _toggleFullScreenSuggestions(
-            type: 'material', show: suggestions.isNotEmpty);
-      });
+      final allWithNumbers =
+          await _materialIndexService.getAllMaterialsWithNumbers();
+      final normalizedQuery = query.toLowerCase().trim();
+
+      List<SuggestionItem> displaySuggestions = [];
+
+      if (RegExp(r'^\d+$').hasMatch(query.trim())) {
+        final int? queryNumber = int.tryParse(query.trim());
+        if (queryNumber != null && allWithNumbers.containsKey(queryNumber)) {
+          displaySuggestions = [
+            SuggestionItem(
+                number: queryNumber, name: allWithNumbers[queryNumber]!)
+          ];
+        }
+      } else {
+        displaySuggestions = allWithNumbers.entries
+            .where((e) => e.value.toLowerCase().contains(normalizedQuery))
+            .map((e) => SuggestionItem(number: e.key, name: e.value))
+            .toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _materialSuggestionItems = displaySuggestions;
+          _materialSuggestions =
+              displaySuggestions.map((e) => e.displayName).toList();
+          _activeMaterialRowIndex = rowIndex;
+          _toggleFullScreenSuggestions(
+              type: 'material', show: displaySuggestions.isNotEmpty);
+        });
+      }
     } else {
-      // إخفاء الاقتراحات إذا كان الحقل فارغاً
-      setState(() {
-        _materialSuggestions = [];
-        _activeMaterialRowIndex = null;
-      });
+      if (mounted) {
+        setState(() {
+          _materialSuggestions = [];
+          _materialSuggestionItems = [];
+          _activeMaterialRowIndex = null;
+          _toggleFullScreenSuggestions(type: 'material', show: false);
+        });
+      }
+    }
+  }
+
+  // تحديث اقتراحات العبوة
+  void _updatePackagingSuggestions(int rowIndex) async {
+    final query = rowControllers[rowIndex][5].text;
+    if (query.length >= 1) {
+      final allWithNumbers =
+          await _packagingIndexService.getAllPackagingsWithNumbers();
+      final normalizedQuery = query.toLowerCase().trim();
+
+      List<SuggestionItem> displaySuggestions = [];
+
+      if (RegExp(r'^\d+$').hasMatch(query.trim())) {
+        final int? queryNumber = int.tryParse(query.trim());
+        if (queryNumber != null && allWithNumbers.containsKey(queryNumber)) {
+          displaySuggestions = [
+            SuggestionItem(
+                number: queryNumber, name: allWithNumbers[queryNumber]!)
+          ];
+        }
+      } else {
+        displaySuggestions = allWithNumbers.entries
+            .where((e) => e.value.toLowerCase().contains(normalizedQuery))
+            .map((e) => SuggestionItem(number: e.key, name: e.value))
+            .toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _packagingSuggestionItems = displaySuggestions;
+          _packagingSuggestions =
+              displaySuggestions.map((e) => e.displayName).toList();
+          _activePackagingRowIndex = rowIndex;
+          _toggleFullScreenSuggestions(
+              type: 'packaging', show: displaySuggestions.isNotEmpty);
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _packagingSuggestions = [];
+          _packagingSuggestionItems = [];
+          _activePackagingRowIndex = null;
+          _toggleFullScreenSuggestions(type: 'packaging', show: false);
+        });
+      }
     }
   }
 
@@ -362,38 +418,60 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
   void _updateSupplierSuggestions(int rowIndex) async {
     final query = rowControllers[rowIndex][2].text;
     if (query.length >= 1) {
-      final suggestions =
-          await getEnhancedSuggestions(_supplierIndexService, query);
-      setState(() {
-        _supplierSuggestions = suggestions;
-        _activeSupplierRowIndex = rowIndex;
-        _toggleFullScreenSuggestions(
-            type: 'supplier', show: suggestions.isNotEmpty);
-      });
+      final allWithNumbers =
+          await _supplierIndexService.getAllSuppliersWithNumbers();
+      final normalizedQuery = query.toLowerCase().trim();
+
+      List<SuggestionItem> displaySuggestions = [];
+
+      if (RegExp(r'^\d+$').hasMatch(query.trim())) {
+        final int? queryNumber = int.tryParse(query.trim());
+        if (queryNumber != null && allWithNumbers.containsKey(queryNumber)) {
+          displaySuggestions = [
+            SuggestionItem(
+                number: queryNumber, name: allWithNumbers[queryNumber]!)
+          ];
+        }
+      } else {
+        displaySuggestions = allWithNumbers.entries
+            .where((e) => e.value.toLowerCase().contains(normalizedQuery))
+            .map((e) => SuggestionItem(number: e.key, name: e.value))
+            .toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _supplierSuggestionItems = displaySuggestions;
+          _supplierSuggestions =
+              displaySuggestions.map((e) => e.displayName).toList();
+          _activeSupplierRowIndex = rowIndex;
+          _toggleFullScreenSuggestions(
+              type: 'supplier', show: displaySuggestions.isNotEmpty);
+        });
+      }
     } else {
-      // إخفاء الاقتراحات إذا كان الحقل فارغاً
-      setState(() {
-        _supplierSuggestions = [];
-        _activeSupplierRowIndex = null;
-      });
+      if (mounted) {
+        setState(() {
+          _supplierSuggestions = [];
+          _supplierSuggestionItems = [];
+          _activeSupplierRowIndex = null;
+          _toggleFullScreenSuggestions(type: 'supplier', show: false);
+        });
+      }
     }
   }
 
-  // اختيار اقتراح للمادة - معدلة تماماً
+  // اختيار اقتراح للمادة
   void _selectMaterialSuggestion(String suggestion, int rowIndex) {
-    // إخفاء الاقتراحات أولاً وفوراً
     _hideAllSuggestionsImmediately();
-
-    // ثم تعيين النص
-    rowControllers[rowIndex][1].text = suggestion;
+    final actualName = _extractNameFromSuggestion(suggestion);
+    rowControllers[rowIndex][1].text = actualName;
     _hasUnsavedChanges = true;
 
-    // حفظ المادة في الفهرس إذا لم تكن موجودة (مع شرط الطول)
-    if (suggestion.trim().length > 1) {
-      _saveMaterialToIndex(suggestion);
+    if (actualName.trim().length > 1) {
+      _saveMaterialToIndex(actualName);
     }
 
-    // نقل التركيز إلى الحقل التالي بعد تأخير بسيط
     Future.delayed(const Duration(milliseconds: 50), () {
       if (mounted) {
         FocusScope.of(context).requestFocus(rowFocusNodes[rowIndex][2]);
@@ -401,21 +479,17 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     });
   }
 
-  // اختيار اقتراح للعبوة - معدلة تماماً
+  // اختيار اقتراح للعبوة
   void _selectPackagingSuggestion(String suggestion, int rowIndex) {
-    // إخفاء الاقتراحات أولاً وفوراً
     _hideAllSuggestionsImmediately();
-
-    // ثم تعيين النص
-    rowControllers[rowIndex][5].text = suggestion;
+    final actualName = _extractNameFromSuggestion(suggestion);
+    rowControllers[rowIndex][5].text = actualName;
     _hasUnsavedChanges = true;
 
-    // حفظ العبوة في الفهرس إذا لم تكن موجودة (مع شرط الطول)
-    if (suggestion.trim().length > 1) {
-      _savePackagingToIndex(suggestion);
+    if (actualName.trim().length > 1) {
+      _savePackagingToIndex(actualName);
     }
 
-    // نقل التركيز إلى الحقل التالي بعد تأخير بسيط
     Future.delayed(const Duration(milliseconds: 50), () {
       if (mounted) {
         FocusScope.of(context).requestFocus(rowFocusNodes[rowIndex][6]);
@@ -423,21 +497,17 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     });
   }
 
-  // اختيار اقتراح للمورد (العائدية) - معدلة تماماً
+  // اختيار اقتراح للمورد (العائدية)
   void _selectSupplierSuggestion(String suggestion, int rowIndex) {
-    // إخفاء الاقتراحات أولاً وفوراً
     _hideAllSuggestionsImmediately();
-
-    // ثم تعيين النص
-    rowControllers[rowIndex][2].text = suggestion;
+    final actualName = _extractNameFromSuggestion(suggestion);
+    rowControllers[rowIndex][2].text = actualName;
     _hasUnsavedChanges = true;
 
-    // حفظ المورد في الفهرس إذا لم يكن موجوداً (مع شرط الطول)
-    if (suggestion.trim().length > 1) {
-      _saveSupplierToIndex(suggestion);
+    if (actualName.trim().length > 1) {
+      _saveSupplierToIndex(actualName);
     }
 
-    // نقل التركيز إلى الحقل التالي بعد تأخير بسيط
     Future.delayed(const Duration(milliseconds: 50), () {
       if (mounted) {
         FocusScope.of(context).requestFocus(rowFocusNodes[rowIndex][3]);
@@ -1103,7 +1173,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     );
   }
 
-   Future<void> _saveCurrentRecord({bool silent = false}) async {
+  Future<void> _saveCurrentRecord({bool silent = false}) async {
     if (_isSaving) return;
 
     setState(() => _isSaving = true);
@@ -1114,7 +1184,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       final controllers = rowControllers[i];
       if (controllers[1].text.isNotEmpty || controllers[4].text.isNotEmpty) {
         allReceiptsFromUI.add(Receipt(
-          serialNumber: (allReceiptsFromUI.length + 1).toString(), // إعادة ترقيم لضمان التسلسل
+          serialNumber: (allReceiptsFromUI.length + 1)
+              .toString(), // إعادة ترقيم لضمان التسلسل
           material: controllers[1].text,
           affiliation: controllers[2].text.trim(),
           sValue: controllers[3].text,
@@ -1138,32 +1209,39 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       }
       return;
     }
-    
+
     // 2. منطق تحديث الأرصدة الجديد (الإلغاء ثم التطبيق)
     Map<String, double> supplierBalanceChanges = {};
-    final existingDocument = await _storageService.loadReceiptDocumentForDate(widget.selectedDate);
+    final existingDocument =
+        await _storageService.loadReceiptDocumentForDate(widget.selectedDate);
 
     // الخطوة أ: إلغاء أثر جميع سجلات الاستلام القديمة لهذا البائع
     if (existingDocument != null) {
       for (var oldReceipt in existingDocument.receipts) {
-        if (oldReceipt.sellerName == widget.sellerName && oldReceipt.affiliation.isNotEmpty) {
+        if (oldReceipt.sellerName == widget.sellerName &&
+            oldReceipt.affiliation.isNotEmpty) {
           double oldPayment = double.tryParse(oldReceipt.payment) ?? 0;
           double oldLoad = double.tryParse(oldReceipt.load) ?? 0;
           // في الاستلام، الدفعة والحمولة تخفض رصيد المورد. لإلغاء هذا الأثر، نعيد إضافة القيمة.
           double totalOldDeduction = oldPayment + oldLoad;
-          supplierBalanceChanges[oldReceipt.affiliation] = (supplierBalanceChanges[oldReceipt.affiliation] ?? 0) + totalOldDeduction;
+          supplierBalanceChanges[oldReceipt.affiliation] =
+              (supplierBalanceChanges[oldReceipt.affiliation] ?? 0) +
+                  totalOldDeduction;
         }
       }
     }
 
     // الخطوة ب: تطبيق أثر جميع سجلات الاستلام الجديدة من الواجهة
     for (var newReceipt in allReceiptsFromUI) {
-      if (newReceipt.sellerName == widget.sellerName && newReceipt.affiliation.isNotEmpty) {
+      if (newReceipt.sellerName == widget.sellerName &&
+          newReceipt.affiliation.isNotEmpty) {
         double newPayment = double.tryParse(newReceipt.payment) ?? 0;
         double newLoad = double.tryParse(newReceipt.load) ?? 0;
         // تطبيق الخصم الجديد من رصيد المورد.
         double totalNewDeduction = newPayment + newLoad;
-        supplierBalanceChanges[newReceipt.affiliation] = (supplierBalanceChanges[newReceipt.affiliation] ?? 0) - totalNewDeduction;
+        supplierBalanceChanges[newReceipt.affiliation] =
+            (supplierBalanceChanges[newReceipt.affiliation] ?? 0) -
+                totalNewDeduction;
       }
     }
 
@@ -1185,7 +1263,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       for (var entry in supplierBalanceChanges.entries) {
         if (entry.value != 0) {
           // دالة updateSupplierBalance تضيف القيمة، لذا نرسل القيمة الصافية مباشرة (موجبة أو سالبة)
-          await _supplierIndexService.updateSupplierBalance(entry.key, entry.value);
+          await _supplierIndexService.updateSupplierBalance(
+              entry.key, entry.value);
         }
       }
 
@@ -1269,15 +1348,14 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     }
   }
 
-  List<String> _getSuggestionsByType() {
+  List<SuggestionItem> _getSuggestionsByType() {
     switch (_currentSuggestionType) {
       case 'material':
-        return _materialSuggestions;
+        return _materialSuggestionItems;
       case 'packaging':
-        return _packagingSuggestions;
+        return _packagingSuggestionItems;
       case 'supplier':
-        return _supplierSuggestions;
-
+        return _supplierSuggestionItems;
       default:
         return [];
     }
@@ -1478,6 +1556,14 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
               fontSize: 9,
               fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal)),
     );
+  }
+
+  String _extractNameFromSuggestion(String suggestion) {
+    final dotIndex = suggestion.indexOf('. ');
+    if (dotIndex != -1 && dotIndex + 2 < suggestion.length) {
+      return suggestion.substring(dotIndex + 2).trim();
+    }
+    return suggestion.trim();
   }
 }
 

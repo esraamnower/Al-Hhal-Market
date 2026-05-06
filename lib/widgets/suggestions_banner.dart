@@ -1,7 +1,21 @@
 import 'package:flutter/material.dart';
 
+// إضافة هذه الفئة الجديدة
+class SuggestionItem {
+  final int number; // رقم الفهرس الحقيقي
+  final String name; // اسم العنصر
+
+  const SuggestionItem({
+    required this.number,
+    required this.name,
+  });
+
+  String get displayName => '$number. $name';
+}
+
 class SuggestionsBanner extends StatelessWidget {
-  final List<String> suggestions;
+  final List<SuggestionItem>
+      suggestions; // تغيير من List<String> إلى List<SuggestionItem>
   final String type;
   final int currentRowIndex;
   final ScrollController scrollController;
@@ -162,14 +176,16 @@ class SuggestionsBanner extends StatelessWidget {
   }
 
   Widget _buildItem(int index, Color primaryColor) {
-    final suggestion = suggestions[index];
+    final item =
+        suggestions[index]; // الآن نحصل على SuggestionItem بدلاً من String
+
     return Container(
       width: 120,
       margin: const EdgeInsets.symmetric(horizontal: 2),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => onSelect(suggestion, currentRowIndex),
+          onTap: () => onSelect(item.displayName, currentRowIndex),
           borderRadius: BorderRadius.circular(4),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -186,22 +202,35 @@ class SuggestionsBanner extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CircleAvatar(
-                  radius: 10,
-                  backgroundColor: index == 0
-                      ? primaryColor
-                      : primaryColor.withOpacity(0.15),
-                  child: Text((index + 1).toString(),
-                      style: TextStyle(
-                          color: index == 0 ? Colors.white : primaryColor,
-                          fontSize: 9)),
+                // ✅ التعديل هنا: إزالة CircleAvatar وإضافة Container يعرض رقم الفهرس الحقيقي
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: index == 0
+                        ? primaryColor
+                        : primaryColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    item.number
+                        .toString(), // ✅ رقم الفهرس الحقيقي بدلاً من index+1
+                    style: TextStyle(
+                      color: index == 0 ? Colors.white : primaryColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 4),
-                Text(suggestion,
-                    style: const TextStyle(fontSize: 10),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  item.name, // ✅ عرض اسم العنصر فقط
+                  style: const TextStyle(fontSize: 10),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 if (index == 0)
                   Icon(Icons.keyboard_arrow_down,
                       size: 12, color: primaryColor),

@@ -8,6 +8,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../models/purchase_model.dart';
 import '../../services/invoices_service.dart';
+import '../../widgets/pdf_action_menu.dart';
+import 'package:flutter/services.dart';
 
 class SupplierPurchasesScreen extends StatefulWidget {
   final String selectedDate;
@@ -36,24 +38,18 @@ class _SupplierPurchasesScreenState extends State<SupplierPurchasesScreen> {
   }
 
   // --- دالة توليد الـ PDF والمشاركة ---
-  Future<void> _generateAndSharePdf(List<Purchase> items) async {
+  Future<Uint8List> _generatePdfBytes(List<Purchase> items) async {
     final pdf = pw.Document();
 
-    // تحميل الخط العربي
     var arabicFont;
     try {
       final fontData = await rootBundle.load("assets/fonts/Cairo-Regular.ttf");
       arabicFont = pw.Font.ttf(fontData);
     } catch (e) {
       arabicFont = pw.Font.courier();
-      debugPrint("Error loading font: $e");
     }
 
-    // حساب المجاميع
-    double totalStanding = 0;
-    double totalNet = 0;
-    double totalCount = 0;
-    double totalGrand = 0;
+    double totalStanding = 0, totalNet = 0, totalCount = 0, totalGrand = 0;
     for (var item in items) {
       totalStanding += double.tryParse(item.standing) ?? 0;
       totalNet += double.tryParse(item.net) ?? 0;
@@ -61,69 +57,49 @@ class _SupplierPurchasesScreenState extends State<SupplierPurchasesScreen> {
       totalGrand += double.tryParse(item.total) ?? 0;
     }
 
-    // تعريف الألوان (Theme: Red)
-    final PdfColor headerColor = PdfColor.fromInt(0xFFEF5350); // Red 400
+    final PdfColor headerColor = PdfColor.fromInt(0xFFEF5350);
     final PdfColor headerTextColor = PdfColors.white;
     final PdfColor rowEvenColor = PdfColors.white;
-    final PdfColor rowOddColor = PdfColor.fromInt(0xFFFFEBEE); // Red 50
-    final PdfColor borderColor = PdfColor.fromInt(0xFFE0E0E0); // Grey 300
-    final PdfColor totalRowColor = PdfColor.fromInt(0xFFFFCDD2); // Red 100
-    final PdfColor grandTotalColor = PdfColor.fromInt(0xFFC62828); // Red 800
+    final PdfColor rowOddColor = PdfColor.fromInt(0xFFFFEBEE);
+    final PdfColor borderColor = PdfColor.fromInt(0xFFE0E0E0);
+    final PdfColor totalRowColor = PdfColor.fromInt(0xFFFFCDD2);
+    final PdfColor grandTotalColor = PdfColor.fromInt(0xFFC62828);
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         textDirection: pw.TextDirection.rtl,
-        theme: pw.ThemeData.withFont(
-          base: arabicFont,
-          bold: arabicFont,
-        ),
+        theme: pw.ThemeData.withFont(base: arabicFont, bold: arabicFont),
         build: (pw.Context context) {
           return [
             pw.Directionality(
               textDirection: pw.TextDirection.rtl,
               child: pw.Column(
                 children: [
-                  // --- العناوين ---
                   pw.Center(
-                    child: pw.Text(
-                      'مشتريات من المورد ${widget.supplierName}',
-                      style: pw.TextStyle(
-                        fontSize: 18,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                      textDirection: pw.TextDirection.rtl,
-                    ),
-                  ),
+                      child: pw.Text('مشتريات من المورد ${widget.supplierName}',
+                          style: pw.TextStyle(
+                              fontSize: 18, fontWeight: pw.FontWeight.bold))),
                   pw.SizedBox(height: 5),
                   pw.Center(
-                    child: pw.Text(
-                      'بتاريخ ${widget.selectedDate}',
-                      style: const pw.TextStyle(
-                          fontSize: 14, color: PdfColors.grey700),
-                      textDirection: pw.TextDirection.rtl,
-                    ),
-                  ),
+                      child: pw.Text('بتاريخ ${widget.selectedDate}',
+                          style: const pw.TextStyle(
+                              fontSize: 14, color: PdfColors.grey700))),
                   pw.SizedBox(height: 15),
-
-                  // --- الجدول (معكوس يدوياً) ---
                   pw.Table(
                     border: pw.TableBorder.all(color: borderColor, width: 0.5),
-                    // تم عكس العروض لتتناسب مع عكس الأعمدة
-                    // الترتيب الجديد: فوارغ، إجمالي، سعر، صافي، قائم، عبوة، عدد، مادة، ت
                     columnWidths: {
-                      0: const pw.FlexColumnWidth(3), // فوارغ (يسار الصفحة)
-                      1: const pw.FlexColumnWidth(3), // الإجمالي
-                      2: const pw.FlexColumnWidth(2), // السعر
-                      3: const pw.FlexColumnWidth(2), // الصافي
-                      4: const pw.FlexColumnWidth(2), // القائم
-                      5: const pw.FlexColumnWidth(3), // العبوة
-                      6: const pw.FlexColumnWidth(2), // العدد
-                      7: const pw.FlexColumnWidth(4), // المادة
-                      8: const pw.FlexColumnWidth(1), // ت (يمين الصفحة)
+                      0: const pw.FlexColumnWidth(3),
+                      1: const pw.FlexColumnWidth(3),
+                      2: const pw.FlexColumnWidth(2),
+                      3: const pw.FlexColumnWidth(2),
+                      4: const pw.FlexColumnWidth(2),
+                      5: const pw.FlexColumnWidth(3),
+                      6: const pw.FlexColumnWidth(2),
+                      7: const pw.FlexColumnWidth(4),
+                      8: const pw.FlexColumnWidth(1),
                     },
                     children: [
-                      // رأس الجدول (معكوس)
                       pw.TableRow(
                         decoration: pw.BoxDecoration(color: headerColor),
                         children: [
@@ -138,7 +114,6 @@ class _SupplierPurchasesScreenState extends State<SupplierPurchasesScreen> {
                           _buildPdfHeaderCell('ت', headerTextColor),
                         ],
                       ),
-                      // البيانات (معكوسة)
                       ...items.asMap().entries.map((entry) {
                         final index = entry.key;
                         final item = entry.value;
@@ -160,7 +135,6 @@ class _SupplierPurchasesScreenState extends State<SupplierPurchasesScreen> {
                           ],
                         );
                       }).toList(),
-                      // سطر المجموع (معكوس)
                       pw.TableRow(
                         decoration: pw.BoxDecoration(color: totalRowColor),
                         children: [
@@ -182,24 +156,20 @@ class _SupplierPurchasesScreenState extends State<SupplierPurchasesScreen> {
                     ],
                   ),
                   pw.SizedBox(height: 20),
-
-                  // المجموع النهائي
                   pw.Container(
                     width: double.infinity,
                     padding: const pw.EdgeInsets.all(10),
                     decoration: pw.BoxDecoration(
-                      color: grandTotalColor,
-                      borderRadius: pw.BorderRadius.circular(4),
-                    ),
+                        color: grandTotalColor,
+                        borderRadius: pw.BorderRadius.circular(4)),
                     child: pw.Center(
                       child: pw.Text(
                         'المجموع ${totalGrand.toStringAsFixed(2)} ليرة سورية فقط لا غير .',
                         textAlign: pw.TextAlign.center,
                         style: pw.TextStyle(
-                          color: PdfColors.white,
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
+                            color: PdfColors.white,
+                            fontSize: 14,
+                            fontWeight: pw.FontWeight.bold),
                         textDirection: pw.TextDirection.rtl,
                       ),
                     ),
@@ -212,13 +182,7 @@ class _SupplierPurchasesScreenState extends State<SupplierPurchasesScreen> {
       ),
     );
 
-    final output = await getTemporaryDirectory();
-    final file = File("${output.path}/مشتريات_${widget.supplierName}.pdf");
-    await file.writeAsBytes(await pdf.save());
-
-    await Share.shareXFiles([XFile(file.path)],
-        text:
-            'مشتريات المورد ${widget.supplierName} بتاريخ ${widget.selectedDate}');
+    return await pdf.save();
   }
 
   // --- دوال مساعدة للـ PDF ---
@@ -296,19 +260,17 @@ class _SupplierPurchasesScreenState extends State<SupplierPurchasesScreen> {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'مشاركة PDF',
-            onPressed: () async {
-              final data = await _purchasesDataFuture;
-              if (data.isNotEmpty) {
-                _generateAndSharePdf(data);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('لا توجد بيانات لمشاركتها')),
-                );
-              }
-            },
+          PdfActionMenu(
+            type: 'supplier',
+            supplierOrCustomerName: widget.supplierName,
+            filterDesc: widget.selectedDate,
+            balance: null,
+            storeName: 'المتجر',
+            selectedDate: widget.selectedDate,
+            iconSize: 60,
+            getItems: () async => await _purchasesDataFuture,
+            generatePdfCallback: (items) =>
+                _generatePdfBytes(items as List<Purchase>),
           ),
         ],
         bottom: PreferredSize(

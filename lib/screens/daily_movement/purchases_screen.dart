@@ -10,7 +10,6 @@ import '../../services/supplier_index_service.dart';
 import '../../widgets/table_builder.dart' as TableBuilder;
 import '../../widgets/table_components.dart' as TableComponents;
 import '../../widgets/common_dialogs.dart' as CommonDialogs;
-import '../../services/enhanced_index_service.dart';
 import '../../widgets/suggestions_banner.dart';
 import '../../widgets/exit_button.dart';
 import '../../services/supplier_balance_tracker.dart';
@@ -22,6 +21,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
+import '../../widgets/pdf_action_menu.dart';
 
 class PurchasesScreen extends StatefulWidget {
   final String sellerName;
@@ -1221,10 +1221,16 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
         backgroundColor: Colors.red[700],
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'تصدير PDF',
-            onPressed: () => _generateAndSharePdf(),
+          PdfActionMenu(
+            type: 'purchases',
+            supplierOrCustomerName: 'المشتريات',
+            filterDesc: widget.selectedDate,
+            balance: null,
+            storeName: widget.storeName,
+            selectedDate: widget.selectedDate,
+            iconSize: 60,
+            getItems: () async => rowControllers,
+            generatePdfCallback: (items) => _generatePdfBytes(items),
           ),
           IconButton(
             icon: _isSaving
@@ -1827,6 +1833,147 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
       return suggestion.substring(dotIndex + 2).trim();
     }
     return suggestion.trim();
+  }
+
+  // دالة توليد PDF المعدلة
+  Future<Uint8List> _generatePdfBytes(List<dynamic> items) async {
+    final pdf = pw.Document();
+
+    var arabicFont;
+    try {
+      final fontData = await rootBundle.load("assets/fonts/Cairo-Regular.ttf");
+      arabicFont = pw.Font.ttf(fontData);
+    } catch (e) {
+      arabicFont = pw.Font.courier();
+    }
+
+    double totalCount = 0, totalBase = 0, totalNet = 0, totalGrand = 0;
+    for (var controllers in rowControllers) {
+      totalCount += double.tryParse(controllers[3].text) ?? 0;
+      totalBase += double.tryParse(controllers[5].text) ?? 0;
+      totalNet += double.tryParse(controllers[6].text) ?? 0;
+      totalGrand += double.tryParse(controllers[8].text) ?? 0;
+    }
+
+    final PdfColor headerColor = PdfColor.fromInt(0xFFD32F2F);
+    final PdfColor headerTextColor = PdfColors.white;
+    final PdfColor rowEvenColor = PdfColors.white;
+    final PdfColor rowOddColor = PdfColor.fromInt(0xFFFFCDD2);
+    final PdfColor borderColor = PdfColor.fromInt(0xFFE0E0E0);
+    final PdfColor totalRowColor = PdfColor.fromInt(0xFFEF9A9A);
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        orientation: pw.PageOrientation.landscape,
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: arabicFont, bold: arabicFont),
+        build: (pw.Context context) {
+          return [
+            pw.Directionality(
+              textDirection: pw.TextDirection.rtl,
+              child: pw.Column(
+                children: [
+                  pw.Center(
+                      child: pw.Text('يومية مشتريات رقم /$serialNumber/',
+                          style: pw.TextStyle(
+                              fontSize: 16, fontWeight: pw.FontWeight.bold))),
+                  pw.Center(
+                      child: pw.Text(
+                          'تاريخ ${widget.selectedDate} - البائع ${widget.sellerName}',
+                          style: const pw.TextStyle(
+                              fontSize: 16, color: PdfColors.grey700))),
+                  pw.SizedBox(height: 10),
+                  pw.Table(
+                    border: pw.TableBorder.all(color: borderColor, width: 0.5),
+                    columnWidths: {
+                      0: const pw.FlexColumnWidth(3),
+                      1: const pw.FlexColumnWidth(2),
+                      2: const pw.FlexColumnWidth(2),
+                      3: const pw.FlexColumnWidth(2),
+                      4: const pw.FlexColumnWidth(3),
+                      5: const pw.FlexColumnWidth(2),
+                      6: const pw.FlexColumnWidth(3),
+                      7: const pw.FlexColumnWidth(4),
+                      8: const pw.FlexColumnWidth(2),
+                      9: const pw.FlexColumnWidth(3),
+                      10: const pw.FlexColumnWidth(1),
+                    },
+                    children: [
+                      pw.TableRow(
+                        decoration: pw.BoxDecoration(color: headerColor),
+                        children: [
+                          _buildPdfHeaderCell('نوع', headerTextColor),
+                          _buildPdfHeaderCell('فوارغ', headerTextColor),
+                          _buildPdfHeaderCell('الإجمالي', headerTextColor),
+                          _buildPdfHeaderCell('السعر', headerTextColor),
+                          _buildPdfHeaderCell('الصافي', headerTextColor),
+                          _buildPdfHeaderCell('القائم', headerTextColor),
+                          _buildPdfHeaderCell('العبوة', headerTextColor),
+                          _buildPdfHeaderCell('العدد', headerTextColor),
+                          _buildPdfHeaderCell('المورد', headerTextColor),
+                          _buildPdfHeaderCell('المادة', headerTextColor),
+                          _buildPdfHeaderCell('ت', headerTextColor),
+                        ],
+                      ),
+                      ...rowControllers.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final controllers = entry.value;
+                        if (controllers[1].text.isEmpty &&
+                            controllers[3].text.isEmpty) {
+                          return pw.TableRow(
+                              children: List.filled(11, pw.SizedBox()));
+                        }
+                        final color =
+                            index % 2 == 0 ? rowEvenColor : rowOddColor;
+                        return pw.TableRow(
+                          decoration: pw.BoxDecoration(color: color),
+                          children: [
+                            _buildPdfCell(cashOrDebtValues[index]),
+                            _buildPdfCell(emptiesValues[index]),
+                            _buildPdfCell(controllers[8].text, isBold: true),
+                            _buildPdfCell(controllers[7].text),
+                            _buildPdfCell(controllers[6].text),
+                            _buildPdfCell(controllers[5].text),
+                            _buildPdfCell(controllers[4].text),
+                            _buildPdfCell(controllers[3].text),
+                            _buildPdfCell(controllers[2].text),
+                            _buildPdfCell(controllers[1].text),
+                            _buildPdfCell(controllers[0].text),
+                          ],
+                        );
+                      }).toList(),
+                      pw.TableRow(
+                        decoration: pw.BoxDecoration(color: totalRowColor),
+                        children: [
+                          _buildPdfCell(''),
+                          _buildPdfCell(''),
+                          _buildPdfCell(totalGrand.toStringAsFixed(2),
+                              isBold: true),
+                          _buildPdfCell(''),
+                          _buildPdfCell(totalNet.toStringAsFixed(2),
+                              isBold: true),
+                          _buildPdfCell(totalBase.toStringAsFixed(2),
+                              isBold: true),
+                          _buildPdfCell(''),
+                          _buildPdfCell(totalCount.toStringAsFixed(0),
+                              isBold: true),
+                          _buildPdfCell(''),
+                          _buildPdfCell('المجموع', isBold: true),
+                          _buildPdfCell(''),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ];
+        },
+      ),
+    );
+
+    return await pdf.save();
   }
 }
 

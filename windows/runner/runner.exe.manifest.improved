@@ -2,11 +2,11 @@
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
   <assemblyIdentity
     type="win32"
-    name="com.example.maher"
+    name="sy.alhalmarket.syrian_arab"
     version="1.0.0.0"
     processorArchitecture="amd64"/>
 
-  <description>Maher Application</description>
+  <description>محاسب سوق الهال</description>
 
   <!-- تحديد مستوى DPI Awareness -->
   <application xmlns="urn:schemas-microsoft-com:asm.v3">

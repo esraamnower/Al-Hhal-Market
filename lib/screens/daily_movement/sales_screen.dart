@@ -7,7 +7,6 @@ import '../../services/material_index_service.dart';
 import '../../services/packaging_index_service.dart';
 import '../../services/supplier_index_service.dart';
 import '../../services/customer_index_service.dart';
-import '../../services/enhanced_index_service.dart';
 
 import '../../widgets/table_builder.dart' as TableBuilder;
 import '../../widgets/table_components.dart' as TableComponents;

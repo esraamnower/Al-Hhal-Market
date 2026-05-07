@@ -8,6 +8,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../services/invoices_service.dart';
 import '../../services/supplier_index_service.dart';
+import '../../widgets/pdf_action_menu.dart';
+import 'package:flutter/services.dart';
 
 class SupplierInvoicesScreen extends StatefulWidget {
   final String selectedDate;
@@ -54,27 +56,22 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
     }
   }
 
-  // --- دالة توليد الـ PDF والمشاركة (3 جداول - معكوسة الترتيب) ---
-  Future<void> _generateAndSharePdf(
-      SupplierReportData data, double? supplierBalance) async {
+  Future<Uint8List> _generatePdfBytes(SupplierReportData data) async {
     final pdf = pw.Document();
 
-    // تحميل الخط العربي
     var arabicFont;
     try {
       final fontData = await rootBundle.load("assets/fonts/Cairo-Regular.ttf");
       arabicFont = pw.Font.ttf(fontData);
     } catch (e) {
       arabicFont = pw.Font.courier();
-      debugPrint("Error loading font: $e");
     }
 
-    // --- حساب المجاميع للـ PDF ---
-    // 1. المبيعات
-    double salesTotalStanding = 0;
-    double salesTotalNet = 0;
-    double salesTotalCount = 0;
-    double salesTotalGrand = 0;
+    // حساب المجاميع
+    double salesTotalStanding = 0,
+        salesTotalNet = 0,
+        salesTotalCount = 0,
+        salesTotalGrand = 0;
     for (var item in data.sales) {
       salesTotalStanding += double.tryParse(item.standing) ?? 0;
       salesTotalNet += double.tryParse(item.net) ?? 0;
@@ -82,11 +79,10 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
       salesTotalGrand += double.tryParse(item.total) ?? 0;
     }
 
-    // 2. الاستلام
-    double receiptTotalCount = 0;
-    double receiptTotalStanding = 0;
-    double receiptTotalPayment = 0;
-    double receiptTotalLoad = 0;
+    double receiptTotalCount = 0,
+        receiptTotalStanding = 0,
+        receiptTotalPayment = 0,
+        receiptTotalLoad = 0;
     for (var item in data.receipts) {
       receiptTotalCount += double.tryParse(item.count) ?? 0;
       receiptTotalStanding += double.tryParse(item.standing) ?? 0;
@@ -94,81 +90,63 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
       receiptTotalLoad += double.tryParse(item.load) ?? 0;
     }
 
-    // تعريف الألوان
     final PdfColor borderColor = PdfColor.fromInt(0xFFE0E0E0);
     final PdfColor headerTextColor = PdfColors.white;
     final PdfColor rowEvenColor = PdfColors.white;
-    // ألوان المبيعات (Indigo)
     final PdfColor salesHeader = PdfColor.fromInt(0xFF5C6BC0);
     final PdfColor salesRowOdd = PdfColor.fromInt(0xFFE8EAF6);
     final PdfColor salesTotalRow = PdfColor.fromInt(0xFFC5CAE9);
     final PdfColor salesGrandColor = PdfColor.fromInt(0xFF283593);
-    // ألوان الاستلام (Green)
     final PdfColor receiptHeader = PdfColor.fromInt(0xFF66BB6A);
     final PdfColor receiptRowOdd = PdfColor.fromInt(0xFFE8F5E9);
     final PdfColor receiptTotalRow = PdfColor.fromInt(0xFFC8E6C9);
-    // ألوان الملخص (Orange)
     final PdfColor summaryHeader = PdfColor.fromInt(0xFFFFA726);
     final PdfColor summaryRowOdd = PdfColor.fromInt(0xFFFFF3E0);
 
     final String balanceTextPdf =
-        supplierBalance != null ? supplierBalance.toStringAsFixed(2) : '---';
+        _supplierBalance != null ? _supplierBalance!.toStringAsFixed(2) : '---';
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         textDirection: pw.TextDirection.rtl,
-        theme: pw.ThemeData.withFont(
-          base: arabicFont,
-          bold: arabicFont,
-        ),
+        theme: pw.ThemeData.withFont(base: arabicFont, bold: arabicFont),
         build: (pw.Context context) {
           return [
             pw.Directionality(
               textDirection: pw.TextDirection.rtl,
               child: pw.Column(
                 children: [
-                  // --- الترويسة الرئيسية ---
                   pw.Center(
-                    child: pw.Text(
-                      'مبيعات المورد ${widget.supplierName}',
-                      style: pw.TextStyle(
-                          fontSize: 18, fontWeight: pw.FontWeight.bold),
-                      textDirection: pw.TextDirection.rtl,
-                    ),
-                  ),
+                      child: pw.Text('مبيعات المورد ${widget.supplierName}',
+                          style: pw.TextStyle(
+                              fontSize: 18, fontWeight: pw.FontWeight.bold))),
                   pw.SizedBox(height: 5),
                   pw.Center(
-                    child: pw.Text(
-                      'بتاريخ ${widget.selectedDate}',
-                      style: const pw.TextStyle(
-                          fontSize: 14, color: PdfColors.grey700),
-                      textDirection: pw.TextDirection.rtl,
-                    ),
-                  ),
+                      child: pw.Text('بتاريخ ${widget.selectedDate}',
+                          style: const pw.TextStyle(
+                              fontSize: 14, color: PdfColors.grey700))),
                   pw.SizedBox(height: 15),
 
-                  // ================= القسم الأول: المبيعات (معكوس) =================
+                  // جدول المبيعات
                   if (data.sales.isNotEmpty) ...[
                     _buildPdfSectionTitle('المبيعات', salesGrandColor),
                     pw.Table(
                       border:
                           pw.TableBorder.all(color: borderColor, width: 0.5),
-                      // الترتيب الجديد: زبون، إجمالي، سعر، صافي، قائم، عبوة، عدد، س، مادة، ت
                       columnWidths: {
-                        0: const pw.FlexColumnWidth(3), // الزبون (يسار)
-                        1: const pw.FlexColumnWidth(3), // الإجمالي
-                        2: const pw.FlexColumnWidth(2), // السعر
-                        3: const pw.FlexColumnWidth(2), // الصافي
-                        4: const pw.FlexColumnWidth(2), // القائم
-                        5: const pw.FlexColumnWidth(3), // العبوة
-                        6: const pw.FlexColumnWidth(2), // العدد
-                        7: const pw.FlexColumnWidth(1), // س
-                        8: const pw.FlexColumnWidth(4), // المادة
-                        9: const pw.FlexColumnWidth(1), // ت (يمين)
+                        0: const pw.FlexColumnWidth(3),
+                        1: const pw.FlexColumnWidth(3),
+                        2: const pw.FlexColumnWidth(2),
+                        3: const pw.FlexColumnWidth(2),
+                        4: const pw.FlexColumnWidth(2),
+                        5: const pw.FlexColumnWidth(3),
+                        6: const pw.FlexColumnWidth(2),
+                        7: const pw.FlexColumnWidth(1),
+                        8: const pw.FlexColumnWidth(4),
+                        9: const pw.FlexColumnWidth(1),
                       },
                       children: [
-                        // رأس الجدول (معكوس)
                         pw.TableRow(
                           decoration: pw.BoxDecoration(color: salesHeader),
                           children: [
@@ -184,7 +162,6 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
                             _buildPdfHeaderCell('ت', headerTextColor),
                           ],
                         ),
-                        // البيانات (معكوسة)
                         ...data.sales.asMap().entries.map((entry) {
                           final index = entry.key;
                           final item = entry.value;
@@ -207,7 +184,6 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
                             ],
                           );
                         }).toList(),
-                        // سطر المجموع (معكوس)
                         pw.TableRow(
                           decoration: pw.BoxDecoration(color: salesTotalRow),
                           children: [
@@ -232,26 +208,24 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
                     pw.SizedBox(height: 20),
                   ],
 
-                  // ================= القسم الثاني: الاستلام (معكوس) =================
+                  // جدول الاستلام
                   if (data.receipts.isNotEmpty) ...[
                     _buildPdfSectionTitle(
                         'الاستلام', PdfColor.fromInt(0xFF388E3C)),
                     pw.Table(
                       border:
                           pw.TableBorder.all(color: borderColor, width: 0.5),
-                      // الترتيب الجديد: حمولة، دفعة، قائم، عبوة، عدد، س، مادة، ت
                       columnWidths: {
-                        0: const pw.FlexColumnWidth(2), // الحمولة (يسار)
-                        1: const pw.FlexColumnWidth(2), // الدفعة
-                        2: const pw.FlexColumnWidth(2), // القائم
-                        3: const pw.FlexColumnWidth(3), // العبوة
-                        4: const pw.FlexColumnWidth(2), // العدد
-                        5: const pw.FlexColumnWidth(1), // س
-                        6: const pw.FlexColumnWidth(4), // المادة
-                        7: const pw.FlexColumnWidth(1), // ت (يمين)
+                        0: const pw.FlexColumnWidth(2),
+                        1: const pw.FlexColumnWidth(2),
+                        2: const pw.FlexColumnWidth(2),
+                        3: const pw.FlexColumnWidth(3),
+                        4: const pw.FlexColumnWidth(2),
+                        5: const pw.FlexColumnWidth(1),
+                        6: const pw.FlexColumnWidth(4),
+                        7: const pw.FlexColumnWidth(1),
                       },
                       children: [
-                        // رأس الجدول (معكوس)
                         pw.TableRow(
                           decoration: pw.BoxDecoration(color: receiptHeader),
                           children: [
@@ -265,7 +239,6 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
                             _buildPdfHeaderCell('ت', headerTextColor),
                           ],
                         ),
-                        // البيانات (معكوسة)
                         ...data.receipts.asMap().entries.map((entry) {
                           final index = entry.key;
                           final item = entry.value;
@@ -285,7 +258,6 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
                             ],
                           );
                         }).toList(),
-                        // سطر المجموع للاستلام (معكوس)
                         pw.TableRow(
                           decoration: pw.BoxDecoration(color: receiptTotalRow),
                           children: [
@@ -310,22 +282,20 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
                     pw.SizedBox(height: 20),
                   ],
 
-                  // ================= القسم الثالث: الملخص (معكوس) =================
+                  // جدول الملخص
                   if (data.summary.isNotEmpty) ...[
                     _buildPdfSectionTitle(
                         'الاستلام - المبيعات', PdfColor.fromInt(0xFFEF6C00)),
                     pw.Table(
                       border:
                           pw.TableBorder.all(color: borderColor, width: 0.5),
-                      // الترتيب الجديد: بايت، صادر، وارد، مادة
                       columnWidths: {
-                        0: const pw.FlexColumnWidth(2), // البايت (يسار)
-                        1: const pw.FlexColumnWidth(2), // صادر
-                        2: const pw.FlexColumnWidth(2), // وارد
-                        3: const pw.FlexColumnWidth(4), // المادة (يمين)
+                        0: const pw.FlexColumnWidth(2),
+                        1: const pw.FlexColumnWidth(2),
+                        2: const pw.FlexColumnWidth(2),
+                        3: const pw.FlexColumnWidth(4),
                       },
                       children: [
-                        // رأس الجدول (معكوس)
                         pw.TableRow(
                           decoration: pw.BoxDecoration(color: summaryHeader),
                           children: [
@@ -337,7 +307,6 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
                             _buildPdfHeaderCell('المادة', PdfColors.black),
                           ],
                         ),
-                        // البيانات (معكوسة)
                         ...data.summary.asMap().entries.map((entry) {
                           final index = entry.key;
                           final item = entry.value;
@@ -346,15 +315,11 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
                           final balanceColor = item.balance >= 0
                               ? PdfColor.fromInt(0xFF2E7D32)
                               : PdfColor.fromInt(0xFFC62828);
-
                           return pw.TableRow(
                             decoration: pw.BoxDecoration(color: color),
                             children: [
-                              _buildPdfCell(
-                                item.balance.toStringAsFixed(0),
-                                textColor: balanceColor,
-                                isBold: true,
-                              ),
+                              _buildPdfCell(item.balance.toStringAsFixed(0),
+                                  textColor: balanceColor, isBold: true),
                               _buildPdfCell(item.salesCount.toStringAsFixed(0)),
                               _buildPdfCell(
                                   item.receiptCount.toStringAsFixed(0)),
@@ -366,7 +331,6 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
                     ),
                   ],
 
-                  // رصيد المورد في الـ PDF
                   pw.SizedBox(height: 20),
                   pw.Container(
                     width: double.infinity,
@@ -380,10 +344,9 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
                         'الرصيد : $balanceTextPdf',
                         textAlign: pw.TextAlign.center,
                         style: pw.TextStyle(
-                          color: PdfColors.white,
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
+                            color: PdfColors.white,
+                            fontSize: 14,
+                            fontWeight: pw.FontWeight.bold),
                         textDirection: pw.TextDirection.rtl,
                       ),
                     ),
@@ -396,13 +359,7 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
       ),
     );
 
-    final output = await getTemporaryDirectory();
-    final file = File("${output.path}/تقرير_المورد_${widget.supplierName}.pdf");
-    await file.writeAsBytes(await pdf.save());
-
-    await Share.shareXFiles([XFile(file.path)],
-        text:
-            'مبيعات المورد ${widget.supplierName} بتاريخ ${widget.selectedDate}');
+    return await pdf.save();
   }
 
   // --- دوال مساعدة للـ PDF ---
@@ -524,20 +481,21 @@ class _SupplierInvoicesScreenState extends State<SupplierInvoicesScreen> {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'مشاركة PDF',
-            onPressed: () async {
+          PdfActionMenu(
+            type: 'supplier',
+            supplierOrCustomerName: widget.supplierName,
+            filterDesc: widget.selectedDate,
+            balance: _supplierBalance,
+            storeName: widget.storeName,
+            selectedDate: widget.selectedDate,
+            iconSize: 60,
+            getItems: () async {
               final data = await _reportDataFuture;
-              if (data.sales.isNotEmpty ||
-                  data.receipts.isNotEmpty ||
-                  data.summary.isNotEmpty) {
-                _generateAndSharePdf(data, _supplierBalance);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('لا توجد بيانات لمشاركتها')),
-                );
-              }
+              return [data]; // نمرر كائن التقرير كاملاً
+            },
+            generatePdfCallback: (items) async {
+              final data = items[0] as SupplierReportData;
+              return _generatePdfBytes(data);
             },
           ),
         ],

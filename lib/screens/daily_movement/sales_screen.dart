@@ -102,6 +102,12 @@ class _SalesScreenState extends State<SalesScreen> {
 
   late ScrollController _horizontalSuggestionsController;
   bool _isAdmin = false;
+
+  double _grandTotal = 0.0;
+  FocusNode? _addButtonFocusNode;
+  int _currentFocusRow = -1;
+  int _currentFocusCol = -1;
+
   @override
   void initState() {
     super.initState();
@@ -115,10 +121,8 @@ class _SalesScreenState extends State<SalesScreen> {
 
     _resetTotalValues();
 
-    // تهيئة متحكم الاقتراحات الأفقية
     _horizontalSuggestionsController = ScrollController();
 
-    // إخفاء الاقتراحات عند التمرير
     _verticalScrollController.addListener(() {
       _hideAllSuggestionsImmediately();
     });
@@ -126,6 +130,8 @@ class _SalesScreenState extends State<SalesScreen> {
     _horizontalScrollController.addListener(() {
       _hideAllSuggestionsImmediately();
     });
+
+    _addButtonFocusNode = FocusNode(); // <-- إضافة
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAdminStatus();
@@ -137,7 +143,6 @@ class _SalesScreenState extends State<SalesScreen> {
 
   @override
   void dispose() {
-    // إزالة جميع مراجع الاقتراحات العمودية
     _saveCurrentRecord(silent: true);
 
     for (var row in rowControllers) {
@@ -161,8 +166,8 @@ class _SalesScreenState extends State<SalesScreen> {
     _horizontalScrollController.dispose();
     _scrollController.dispose();
 
-    // تحرير متحكم الاقتراحات الأفقية
     _horizontalSuggestionsController.dispose();
+    _addButtonFocusNode?.dispose(); // <-- إضافة
 
     super.dispose();
   }
@@ -196,18 +201,9 @@ class _SalesScreenState extends State<SalesScreen> {
     }
   }
 
-  void _resetTotalValues() {
-    totalCountController.text = '0';
-    totalBaseController.text = '0.00';
-    totalNetController.text = '0.00';
-    totalGrandController.text = '0.00';
-  }
-
   void _createNewRecord() {
     setState(() {
-      // لا نحدد الرقم هنا، بل سيتم تعيينه عند الحفظ لأول مرة
-      // الدالة _loadJournalNumber ستهتم بعرض الرقم الصحيح في الواجهة
-      serialNumber = '1'; // عرض رقم افتراضي مؤقتاً
+      serialNumber = '1';
 
       rowControllers.clear();
       rowFocusNodes.clear();
@@ -220,14 +216,19 @@ class _SalesScreenState extends State<SalesScreen> {
       _addNewRow();
     });
 
+    // طلب التركيز على زر الإضافة بعد إنشاء اليومية الجديدة
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (rowFocusNodes.isNotEmpty && rowFocusNodes[0].length > 1) {
-        FocusScope.of(context).requestFocus(rowFocusNodes[0][1]);
-      }
+      _addButtonFocusNode?.requestFocus(); // <-- إضافة
     });
   }
 
-  // تعديل _addNewRow لتحسين المستمعات
+  void _resetTotalValues() {
+    totalCountController.text = '0';
+    totalBaseController.text = '0.00';
+    totalNetController.text = '0.00';
+    totalGrandController.text = '0.00';
+  }
+
   void _addNewRow() {
     setState(() {
       final newSerialNumber = (rowControllers.length + 1).toString();
@@ -692,7 +693,6 @@ class _SalesScreenState extends State<SalesScreen> {
 
   void _loadDocument(SalesDocument document) {
     setState(() {
-      // تنظيف المتحكمات القديمة
       for (var row in rowControllers) {
         for (var controller in row) {
           controller.dispose();
@@ -704,7 +704,6 @@ class _SalesScreenState extends State<SalesScreen> {
         }
       }
 
-      // إعادة تهيئة القوائم
       rowControllers.clear();
       rowFocusNodes.clear();
       cashOrDebtValues.clear();
@@ -714,7 +713,6 @@ class _SalesScreenState extends State<SalesScreen> {
 
       serialNumber = document.recordNumber;
 
-      // تحميل السجلات من الوثيقة
       for (int i = 0; i < document.sales.length; i++) {
         var sale = document.sales[i];
 
@@ -738,14 +736,11 @@ class _SalesScreenState extends State<SalesScreen> {
           (index) => FocusNode(),
         );
 
-        // تخزين اسم البائع لهذا الصف
         sellerNames.add(sale.sellerName);
 
-        // التحقق إذا كان السجل مملوكاً للبائع الحالي
         final bool isOwnedByCurrentSeller =
             sale.sellerName == widget.sellerName;
 
-        // إضافة مستمعات للتغيير فقط إذا كان السجل مملوكاً للبائع الحالي
         if (isOwnedByCurrentSeller) {
           _addChangeListenersToControllers(newControllers, i);
         }
@@ -757,7 +752,11 @@ class _SalesScreenState extends State<SalesScreen> {
         customerNames.add(sale.customerName ?? '');
       }
 
-      // تحميل المجاميع
+      // ربط مستمعات التركيز لكل الصفوف المحملة
+      for (int i = 0; i < rowFocusNodes.length; i++) {
+        _attachFocusListeners(i); // <-- إضافة
+      }
+
       if (document.totals.isNotEmpty) {
         totalCountController.text = document.totals['totalCount'] ?? '0';
         totalBaseController.text = document.totals['totalBase'] ?? '0.00';
@@ -773,18 +772,23 @@ class _SalesScreenState extends State<SalesScreen> {
     const double headerHeight = 32.0;
     const double rowHeight = 25.0;
     final double verticalPosition = (rowIndex * rowHeight);
-    const double columnWidth = 60.0;
+    final double verticalTarget = (verticalPosition + headerHeight)
+        .clamp(0, _verticalScrollController.position.maxScrollExtent);
+
+    const double columnWidth = 80.0;
     final double horizontalPosition = colIndex * columnWidth;
+    final double horizontalTarget = horizontalPosition.clamp(
+        0, _horizontalScrollController.position.maxScrollExtent);
 
     _verticalScrollController.animateTo(
-      verticalPosition + headerHeight,
-      duration: const Duration(milliseconds: 300),
+      verticalTarget,
+      duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
     );
 
     _horizontalScrollController.animateTo(
-      horizontalPosition,
-      duration: const Duration(milliseconds: 300),
+      horizontalTarget,
+      duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
     );
   }
@@ -1371,12 +1375,21 @@ class _SalesScreenState extends State<SalesScreen> {
                 ),
                 const SizedBox(width: 8),
                 Focus(
-                  focusNode: FocusNode(),
+                  focusNode: _addButtonFocusNode, // <-- تغيير
                   child: SizedBox(
                     width: 140,
                     height: 80,
                     child: ElevatedButton(
-                      onPressed: _addNewRow,
+                      onPressed: () {
+                        _addNewRow();
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (rowFocusNodes.isNotEmpty) {
+                            final newRowIndex = rowFocusNodes.length - 1;
+                            FocusScope.of(context)
+                                .requestFocus(rowFocusNodes[newRowIndex][1]);
+                          }
+                        });
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color.fromARGB(255, 14, 82, 184),
                         foregroundColor: Colors.white,
@@ -1421,12 +1434,40 @@ class _SalesScreenState extends State<SalesScreen> {
               )
             else
               Expanded(
-                child: Text(
-                  'يومية مبيعات رقم /$serialNumber/ تاريخ ${widget.selectedDate} البائع ${widget.sellerName}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      'يومية مبيعات رقم /$serialNumber/ تاريخ ${widget.selectedDate} البائع ${widget.sellerName}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          height: 1.5),
+                    ),
+                    // الرصيد الكلي
+                    Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('الإجمالي الكلي: ',
+                              style: TextStyle(
+                                  fontSize: 16, color: Colors.white70)),
+                          Text(
+                            _grandTotal.toStringAsFixed(2),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.lightGreenAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             const SizedBox(width: 8),
@@ -1539,16 +1580,22 @@ class _SalesScreenState extends State<SalesScreen> {
             if (event.logicalKey == LogicalKeyboardKey.enter ||
                 event.logicalKey == LogicalKeyboardKey.numpadEnter) {
               final focusedNode = FocusScope.of(context).focusedChild;
-              if (focusedNode == null) {
+              if (focusedNode == null || focusedNode == _addButtonFocusNode) {
+                // <-- تغيير
                 _addNewRow();
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (rowFocusNodes.isNotEmpty) {
-                    final newRowIndex = rowFocusNodes.length - 1;
-                    FocusScope.of(context)
-                        .requestFocus(rowFocusNodes[newRowIndex][1]);
-                  }
-                });
               }
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+              // <-- إضافة
+              _moveFocus(0, -1);
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+              // <-- إضافة
+              _moveFocus(0, 1);
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+              // <-- إضافة
+              _moveFocus(1, 0);
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+              // <-- إضافة
+              _moveFocus(-1, 0);
             }
           }
         },
@@ -1559,7 +1606,192 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   Widget _buildMainContent() {
-    return _buildTableWithStickyHeader();
+    return Stack(
+      children: [
+        Column(
+          children: [
+            Expanded(
+              child: _buildTableWithStickyHeader(),
+            ),
+            const SizedBox(height: 90),
+          ],
+        ),
+        if (rowControllers.length >= 1)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 0, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.orange[700],
+                  borderRadius: BorderRadius.circular(40),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange[700]!.withOpacity(0.45),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // المجموع
+                    Expanded(
+                      child: Center(
+                        child: const Text(
+                          'المجموع',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // العدد
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'العدد',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          const SizedBox(height: 2),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: totalCountController,
+                            builder: (context, value, child) {
+                              return Text(
+                                value.text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // العبوة — فارغ
+                    Expanded(
+                      child: const SizedBox.shrink(),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // القائم
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'القائم',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          const SizedBox(height: 2),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: totalBaseController,
+                            builder: (context, value, child) {
+                              return Text(
+                                value.text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // الصافي
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'الصافي',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          const SizedBox(height: 2),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: totalNetController,
+                            builder: (context, value, child) {
+                              return Text(
+                                value.text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.lightGreenAccent,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // السعر — فارغ
+                    Expanded(
+                      child: const SizedBox.shrink(),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // الإجمالي
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'الإجمالي',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          const SizedBox(height: 2),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: totalGrandController,
+                            builder: (context, value, child) {
+                              return Text(
+                                value.text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.lightGreenAccent,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // نقدي/دين — فارغ
+                    Expanded(
+                      child: const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _buildTableWithStickyHeader() {
@@ -1811,7 +2043,6 @@ class _SalesScreenState extends State<SalesScreen> {
     });
 
     try {
-      // جلب التواريخ مع أرقام اليوميات
       final dates = await _storageService.getAvailableDatesWithNumbers();
 
       if (kDebugMode) {
@@ -1827,6 +2058,7 @@ class _SalesScreenState extends State<SalesScreen> {
         _availableRecords = dates;
         _isLoadingRecords = false;
       });
+      _loadGrandTotal(); // <-- إضافة
     } catch (e) {
       setState(() {
         _availableRecords = [];
@@ -2115,6 +2347,82 @@ class _SalesScreenState extends State<SalesScreen> {
       return suggestion.substring(dotIndex + 2).trim();
     }
     return suggestion.trim();
+  }
+  // ========== دوال التحكم بالأسهم ==========
+
+  void _attachFocusListeners(int rowIndex) {
+    for (int col = 0; col < rowFocusNodes[rowIndex].length; col++) {
+      rowFocusNodes[rowIndex][col].removeListener(() {});
+      rowFocusNodes[rowIndex][col].addListener(() {
+        if (rowFocusNodes[rowIndex][col].hasFocus) {
+          _currentFocusRow = rowIndex;
+          _currentFocusCol = col;
+          _scrollToField(rowIndex, col);
+        }
+      });
+    }
+  }
+
+  void _moveFocus(int deltaRow, int deltaCol) {
+    if (_currentFocusRow == -1 || _currentFocusCol == -1) {
+      if (rowFocusNodes.isNotEmpty && rowFocusNodes[0].length > 1) {
+        _currentFocusRow = 0;
+        _currentFocusCol = 1; // حقل المادة
+        FocusScope.of(context).requestFocus(rowFocusNodes[0][1]);
+        _scrollToField(0, 1);
+        _adjustScrollPosition(0);
+      }
+      return;
+    }
+
+    int newRow = _currentFocusRow + deltaRow;
+    int newCol = _currentFocusCol + deltaCol;
+
+    if (newRow < 0) newRow = 0;
+    if (newRow >= rowFocusNodes.length) newRow = rowFocusNodes.length - 1;
+
+    // حدود الأعمدة: المادة(1) حتى السعر(8) - لا نذهب إلى المسلسل(0) أو الإجمالي(9) أو نقدي/دين(10) أو الفوارغ(11)
+    const int minCol = 1;
+    const int maxCol = 8;
+    if (newCol < minCol) newCol = minCol;
+    if (newCol > maxCol) newCol = maxCol;
+
+    FocusScope.of(context).requestFocus(rowFocusNodes[newRow][newCol]);
+    _currentFocusRow = newRow;
+    _currentFocusCol = newCol;
+
+    _scrollToField(newRow, newCol);
+    _adjustScrollPosition(newRow);
+  }
+
+  void _adjustScrollPosition(int currentRowIndex) {
+    final int totalRows = rowFocusNodes.length;
+    if (totalRows == 0) return;
+
+    if (currentRowIndex <= 2) {
+      _verticalScrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    } else if (totalRows - currentRowIndex <= 3) {
+      _verticalScrollController.animateTo(
+        _verticalScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Future<void> _loadGrandTotal() async {
+    double total = 0.0;
+    for (var dateInfo in _availableRecords) {
+      final doc = await _storageService.loadSalesDocument(dateInfo['date']!);
+      if (doc != null) {
+        total += double.tryParse(doc.totals['totalGrand'] ?? '0') ?? 0;
+      }
+    }
+    if (mounted) setState(() => _grandTotal = total);
   }
 }
 

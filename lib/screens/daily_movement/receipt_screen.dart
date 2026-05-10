@@ -108,6 +108,11 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
   List<SuggestionItem> _packagingSuggestionItems = [];
   List<SuggestionItem> _supplierSuggestionItems = [];
 
+  double _grandTotal = 0.0;
+  FocusNode? _addButtonFocusNode;
+  int _currentFocusRow = -1;
+  int _currentFocusCol = -1;
+
   @override
   void initState() {
     super.initState();
@@ -123,6 +128,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
 
     _verticalScrollController.addListener(_hideAllSuggestionsImmediately);
     _horizontalScrollController.addListener(_hideAllSuggestionsImmediately);
+
+    _addButtonFocusNode = FocusNode(); // <-- إضافة
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAdminStatus().then((_) {
@@ -157,8 +164,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     _packagingSuggestionsScrollController.dispose();
     _supplierSuggestionsScrollController.dispose();
 
-    // إغلاق المتحكم
     _horizontalSuggestionsController.dispose();
+    _addButtonFocusNode?.dispose(); // <-- إضافة
 
     _balanceTracker.dispose();
 
@@ -194,6 +201,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
         _availableDates = dates;
         _isLoadingDates = false;
       });
+      _loadGrandTotal(); // <-- إضافة
     } catch (e) {
       setState(() {
         _availableDates = [];
@@ -238,11 +246,9 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     setState(() {
       final newSerialNumber = (rowControllers.length + 1).toString();
 
-      // تغيير من 8 إلى 9
       List<TextEditingController> newControllers =
           List.generate(9, (index) => TextEditingController());
 
-      // تغيير من 8 إلى 9
       List<FocusNode> newFocusNodes = List.generate(9, (index) => FocusNode());
 
       newControllers[0].text = newSerialNumber;
@@ -253,10 +259,17 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       rowFocusNodes.add(newFocusNodes);
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (rowFocusNodes.isNotEmpty) {
+    _attachFocusListeners(rowControllers.length - 1);
+
+    // تأخير لضمان بناء الواجهة
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted && rowFocusNodes.isNotEmpty) {
         final newRowIndex = rowFocusNodes.length - 1;
+        _currentFocusRow = newRowIndex;
+        _currentFocusCol = 1;
         FocusScope.of(context).requestFocus(rowFocusNodes[newRowIndex][1]);
+        _scrollToField(newRowIndex, 1);
+        _adjustScrollPosition(newRowIndex);
       }
     });
   }
@@ -593,7 +606,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
           TextEditingController(text: receipt.serialNumber),
           TextEditingController(text: receipt.material),
           TextEditingController(text: receipt.affiliation),
-          TextEditingController(text: receipt.sValue), // <-- الحقل الجديد
+          TextEditingController(text: receipt.sValue),
           TextEditingController(text: receipt.count),
           TextEditingController(text: receipt.packaging),
           TextEditingController(text: receipt.standing),
@@ -601,7 +614,6 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
           TextEditingController(text: receipt.load),
         ];
 
-        // تغيير من 8 إلى 9
         List<FocusNode> newFocusNodes =
             List.generate(9, (index) => FocusNode());
         sellerNames.add(receipt.sellerName);
@@ -612,6 +624,11 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
         }
         rowControllers.add(newControllers);
         rowFocusNodes.add(newFocusNodes);
+      }
+
+      // ربط مستمعات التركيز لكل الصفوف المحملة
+      for (int i = 0; i < rowFocusNodes.length; i++) {
+        _attachFocusListeners(i); // <-- إضافة
       }
 
       if (document.totals.isNotEmpty) {
@@ -629,18 +646,23 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     const double headerHeight = 32.0;
     const double rowHeight = 25.0;
     final double verticalPosition = (rowIndex * rowHeight);
-    const double columnWidth = 60.0;
+    final double verticalTarget = (verticalPosition + headerHeight)
+        .clamp(0, _verticalScrollController.position.maxScrollExtent);
+
+    const double columnWidth = 80.0;
     final double horizontalPosition = colIndex * columnWidth;
+    final double horizontalTarget = horizontalPosition.clamp(
+        0, _horizontalScrollController.position.maxScrollExtent);
 
     _verticalScrollController.animateTo(
-      verticalPosition + headerHeight,
-      duration: const Duration(milliseconds: 300),
+      verticalTarget,
+      duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
     );
 
     _horizontalScrollController.animateTo(
-      horizontalPosition,
-      duration: const Duration(milliseconds: 300),
+      horizontalTarget,
+      duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
     );
   }
@@ -734,9 +756,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
   Widget _buildTableCell(TextEditingController controller, FocusNode focusNode,
       int rowIndex, int colIndex, bool isOwnedByCurrentSeller,
       {bool isSField = false}) {
-    // <-- إضافة isSField
     bool isSerialField = colIndex == 0;
-    // تعديل الأرقام
     bool isNumericField =
         colIndex == 4 || colIndex == 6 || colIndex == 7 || colIndex == 8;
 
@@ -751,7 +771,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       scrollToField: _scrollToField,
       onFieldSubmitted: _handleFieldSubmitted,
       onFieldChanged: _handleFieldChanged,
-      isSField: isSField, // <-- تمرير القيمة
+      isSField: isSField,
       inputFormatters: isSField
           ? [FilteringTextInputFormatter.digitsOnly]
           : (isNumericField
@@ -760,12 +780,12 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                   FilteringTextInputFormatter.deny(RegExp(r'\.\d{3,}')),
                 ]
               : null),
-      fontSize: isSField ? 11 : 13, // <-- تعديل حجم الخط
-      textAlign:
-          isSField ? TextAlign.center : TextAlign.right, // <-- تعديل المحاذاة
-      textDirection: isSField
-          ? TextDirection.ltr
-          : TextDirection.rtl, // <-- تعديل اتجاه النص
+      fontSize: isSField ? 11 : 16, // <-- تغيير من 13 إلى 16
+      textAlign: isSField
+          ? TextAlign.center
+          : TextAlign.center, // <-- تغيير إلى center
+      textDirection:
+          isSField ? TextDirection.ltr : TextDirection.ltr, // <-- تغيير إلى ltr
     );
   }
 
@@ -786,6 +806,9 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       scrollToField: _scrollToField,
       onFieldSubmitted: _handleFieldSubmitted,
       onFieldChanged: _handleFieldChanged,
+      fontSize: 16, // <-- إضافة
+      textAlign: TextAlign.center, // <-- إضافة
+      textDirection: TextDirection.ltr, // <-- إضافة
     );
   }
 
@@ -806,6 +829,9 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       scrollToField: _scrollToField,
       onFieldSubmitted: _handleFieldSubmitted,
       onFieldChanged: _handleFieldChanged,
+      fontSize: 16, // <-- إضافة
+      textAlign: TextAlign.center, // <-- إضافة
+      textDirection: TextDirection.ltr, // <-- إضافة
     );
   }
 
@@ -826,6 +852,9 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       scrollToField: _scrollToField,
       onFieldSubmitted: _handleFieldSubmitted,
       onFieldChanged: _handleFieldChanged,
+      fontSize: 16, // <-- إضافة
+      textAlign: TextAlign.center, // <-- إضافة
+      textDirection: TextDirection.ltr, // <-- إضافة
     );
   }
 
@@ -860,17 +889,24 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       // مسلسل
       FocusScope.of(context).requestFocus(rowFocusNodes[rowIndex][1]);
     } else if (colIndex == 8) {
-      // الحمولة
+      // الحمولة - إنشاء صف جديد والتركيز على المادة
       _addNewRow();
+      // لا نحتاج لتحديد التركيز هنا لأن _addNewRow ستقوم بذلك عبر addPostFrameCallback
+      // لكننا نضمن تحديث المؤشرات
       if (rowControllers.isNotEmpty) {
         final newRowIndex = rowControllers.length - 1;
-        FocusScope.of(context).requestFocus(rowFocusNodes[newRowIndex][1]);
+        // نستخدم Future.delayed لضمان التنفيذ بعد addPostFrameCallback في _addNewRow
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted && newRowIndex < rowFocusNodes.length) {
+            _currentFocusRow = newRowIndex;
+            _currentFocusCol = 1;
+            FocusScope.of(context).requestFocus(rowFocusNodes[newRowIndex][1]);
+            _scrollToField(newRowIndex, 1);
+            _adjustScrollPosition(newRowIndex);
+          }
+        });
       }
-    } else if (colIndex < 8) {
-      FocusScope.of(context)
-          .requestFocus(rowFocusNodes[rowIndex][colIndex + 1]);
     }
-
     _hideAllSuggestionsImmediately();
   }
 
@@ -937,12 +973,21 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                 ),
                 const SizedBox(width: 8),
                 Focus(
-                  focusNode: FocusNode(),
+                  focusNode: _addButtonFocusNode, // <-- تغيير
                   child: SizedBox(
                     width: 140,
                     height: 80,
                     child: ElevatedButton(
-                      onPressed: _addNewRow,
+                      onPressed: () {
+                        _addNewRow();
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (rowFocusNodes.isNotEmpty) {
+                            final newRowIndex = rowFocusNodes.length - 1;
+                            FocusScope.of(context)
+                                .requestFocus(rowFocusNodes[newRowIndex][1]);
+                          }
+                        });
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color.fromARGB(255, 14, 82, 184),
                         foregroundColor: Colors.white,
@@ -985,12 +1030,40 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
               )
             else
               Expanded(
-                child: Text(
-                  'يومية استلام رقم /$serialNumber/ تاريخ ${widget.selectedDate} البائع ${widget.sellerName}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      'يومية استلام رقم /$serialNumber/ تاريخ ${widget.selectedDate} البائع ${widget.sellerName}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          height: 1.5),
+                    ),
+                    // الرصيد الكلي
+                    Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('إجمالي الدفع والحمولة: ',
+                              style: TextStyle(
+                                  fontSize: 16, color: Colors.white70)),
+                          Text(
+                            _grandTotal.toStringAsFixed(2),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.lightGreenAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             const SizedBox(width: 8),
@@ -1095,13 +1168,231 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
           ),
         ],
       ),
-      body: _buildMainContent(),
+      body: RawKeyboardListener(
+        focusNode: FocusNode(),
+        autofocus: true,
+        onKey: (RawKeyEvent event) {
+          if (event is RawKeyDownEvent) {
+            if (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+              final focusedNode = FocusScope.of(context).focusedChild;
+              if (focusedNode == null || focusedNode == _addButtonFocusNode) {
+                // <-- تغيير
+                _addNewRow();
+              }
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+              // <-- إضافة
+              _moveFocus(0, -1);
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+              // <-- إضافة
+              _moveFocus(0, 1);
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+              // <-- إضافة
+              _moveFocus(1, 0);
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+              // <-- إضافة
+              _moveFocus(-1, 0);
+            }
+          }
+        },
+        child: _buildMainContent(),
+      ),
       resizeToAvoidBottomInset: true,
     );
   }
 
   Widget _buildMainContent() {
-    return _buildTableWithStickyHeader();
+    return Stack(
+      children: [
+        Column(
+          children: [
+            Expanded(
+              child: _buildTableWithStickyHeader(),
+            ),
+            const SizedBox(height: 90),
+          ],
+        ),
+        if (rowControllers.length >= 1)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 0, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.blue[700],
+                  borderRadius: BorderRadius.circular(40),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue[700]!.withOpacity(0.45),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // المجموع
+                    Expanded(
+                      child: Center(
+                        child: const Text(
+                          'المجموع',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // المادة — فارغ
+                    Expanded(
+                      child: const SizedBox.shrink(),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // العائدية — فارغ
+                    Expanded(
+                      child: const SizedBox.shrink(),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // س — فارغ
+                    Expanded(
+                      child: const SizedBox.shrink(),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // العدد
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'العدد',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          const SizedBox(height: 2),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: totalCountController,
+                            builder: (context, value, child) {
+                              return Text(
+                                value.text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // العبوة — فارغ
+                    Expanded(
+                      child: const SizedBox.shrink(),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // القائم
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'القائم',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          const SizedBox(height: 2),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: totalStandingController,
+                            builder: (context, value, child) {
+                              return Text(
+                                value.text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // الدفعة
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'الدفعة',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          const SizedBox(height: 2),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: totalPaymentController,
+                            builder: (context, value, child) {
+                              return Text(
+                                value.text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.lightGreenAccent,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    // الحمولة
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'الحمولة',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          const SizedBox(height: 2),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: totalLoadController,
+                            builder: (context, value, child) {
+                              return Text(
+                                value.text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.lightBlueAccent,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _buildTableWithStickyHeader() {
@@ -1521,6 +1812,84 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       return suggestion.substring(dotIndex + 2).trim();
     }
     return suggestion.trim();
+  }
+  // ========== دوال التحكم بالأسهم ==========
+
+  void _attachFocusListeners(int rowIndex) {
+    for (int col = 0; col < rowFocusNodes[rowIndex].length; col++) {
+      rowFocusNodes[rowIndex][col].removeListener(() {});
+      rowFocusNodes[rowIndex][col].addListener(() {
+        if (rowFocusNodes[rowIndex][col].hasFocus) {
+          _currentFocusRow = rowIndex;
+          _currentFocusCol = col;
+          _scrollToField(rowIndex, col);
+        }
+      });
+    }
+  }
+
+  void _moveFocus(int deltaRow, int deltaCol) {
+    if (_currentFocusRow == -1 || _currentFocusCol == -1) {
+      if (rowFocusNodes.isNotEmpty && rowFocusNodes[0].length > 1) {
+        _currentFocusRow = 0;
+        _currentFocusCol = 1; // حقل المادة
+        FocusScope.of(context).requestFocus(rowFocusNodes[0][1]);
+        _scrollToField(0, 1);
+        _adjustScrollPosition(0);
+      }
+      return;
+    }
+
+    int newRow = _currentFocusRow + deltaRow;
+    int newCol = _currentFocusCol + deltaCol;
+
+    if (newRow < 0) newRow = 0;
+    if (newRow >= rowFocusNodes.length) newRow = rowFocusNodes.length - 1;
+
+    // حدود الأعمدة: المادة(1) حتى الحمولة(8) - لا نذهب إلى المسلسل(0)
+    const int minCol = 1;
+    const int maxCol = 8;
+    if (newCol < minCol) newCol = minCol;
+    if (newCol > maxCol) newCol = maxCol;
+
+    FocusScope.of(context).requestFocus(rowFocusNodes[newRow][newCol]);
+    _currentFocusRow = newRow;
+    _currentFocusCol = newCol;
+
+    _scrollToField(newRow, newCol);
+    _adjustScrollPosition(newRow);
+  }
+
+  void _adjustScrollPosition(int currentRowIndex) {
+    final int totalRows = rowFocusNodes.length;
+    if (totalRows == 0) return;
+
+    if (currentRowIndex <= 2) {
+      _verticalScrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    } else if (totalRows - currentRowIndex <= 3) {
+      _verticalScrollController.animateTo(
+        _verticalScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Future<void> _loadGrandTotal() async {
+    double total = 0.0;
+    for (var dateInfo in _availableDates) {
+      final doc =
+          await _storageService.loadReceiptDocumentForDate(dateInfo['date']!);
+      if (doc != null) {
+        total += double.tryParse(doc.totals['totalPayment'] ?? '0') ?? 0;
+        total += double.tryParse(doc.totals['totalLoad'] ?? '0') ?? 0;
+      }
+    }
+    if (mounted) setState(() => _grandTotal = total);
   }
 }
 

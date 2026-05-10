@@ -102,6 +102,17 @@ class _BoxScreenState extends State<BoxScreen> {
   List<SuggestionItem> _customerSuggestionItems = [];
   List<SuggestionItem> _supplierSuggestionItems = [];
 
+  FocusNode? _addButtonFocusNode;
+  int _currentFocusRow = -1;
+  int _currentFocusCol = -1;
+
+  // متغيرات الرصيد الكلي
+  double _grandTotalReceived = 0.0;
+  double _grandTotalPaid = 0.0;
+
+  // قائمة لتخزين نوع الصف
+  List<String> rowSourceTypes = [];
+
   @override
   void initState() {
     super.initState();
@@ -121,6 +132,8 @@ class _BoxScreenState extends State<BoxScreen> {
     _horizontalScrollController.addListener(() {
       _hideAllSuggestionsImmediately();
     });
+
+    _addButtonFocusNode = FocusNode(); // <-- إضافة
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAdminStatus().then((_) {
@@ -153,6 +166,7 @@ class _BoxScreenState extends State<BoxScreen> {
 
     // إغلاق المتحكم
     _horizontalSuggestionsController.dispose();
+    _addButtonFocusNode?.dispose(); // <-- إضافة
 
     _balanceTracker.dispose();
     _calculateTotalsDebouncer?.cancel();
@@ -187,6 +201,7 @@ class _BoxScreenState extends State<BoxScreen> {
         _availableDates = dates;
         _isLoadingDates = false;
       });
+      _loadGrandTotal(); // <-- إضافة
     } catch (e) {
       setState(() {
         _availableDates = [];
@@ -220,6 +235,7 @@ class _BoxScreenState extends State<BoxScreen> {
       rowFocusNodes.clear();
       accountTypeValues.clear();
       sellerNames.clear();
+      rowSourceTypes.clear(); // <-- إضافة
       _resetTotalValues();
       _hasUnsavedChanges = false;
       _addNewRow();
@@ -237,25 +253,6 @@ class _BoxScreenState extends State<BoxScreen> {
 
       newControllers[0].text = newSerialNumber;
 
-      // إضافة مستمع FocusNode لحقل اسم الحساب
-      newFocusNodes[3].addListener(() {
-        if (!newFocusNodes[3].hasFocus) {
-          // إخفاء الاقتراحات عند فقدان التركيز
-          Future.delayed(const Duration(milliseconds: 100), () {
-            if (mounted) {
-              setState(() {
-                _supplierSuggestions = [];
-                _activeSupplierRowIndex = null;
-                _customerSuggestions = [];
-                _activeCustomerRowIndex = null;
-                _showFullScreenSuggestions = false;
-                _currentSuggestionType = '';
-              });
-            }
-          });
-        }
-      });
-
       // إضافة مستمعات للتغيير
       _addChangeListenersToControllers(newControllers, rowControllers.length);
 
@@ -265,12 +262,20 @@ class _BoxScreenState extends State<BoxScreen> {
       rowControllers.add(newControllers);
       rowFocusNodes.add(newFocusNodes);
       accountTypeValues.add('');
+      rowSourceTypes.add('box'); // <-- إضافة
     });
+
+    _attachFocusListeners(rowControllers.length - 1); // <-- إضافة
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (rowFocusNodes.isNotEmpty) {
         final newRowIndex = rowFocusNodes.length - 1;
-        FocusScope.of(context).requestFocus(rowFocusNodes[newRowIndex][1]);
+        _currentFocusRow = newRowIndex;
+        _currentFocusCol = 1; // <-- تغيير من 0 إلى 1 (المقبوض بدلاً من المسلسل)
+        FocusScope.of(context).requestFocus(
+            rowFocusNodes[newRowIndex][1]); // <-- تغيير من 0 إلى 1
+        _scrollToField(newRowIndex, 1); // <-- تغيير من 0 إلى 1
+        _adjustScrollPosition(newRowIndex);
       }
     });
   }
@@ -397,7 +402,6 @@ class _BoxScreenState extends State<BoxScreen> {
     });
   }
 
-  // تعديل _loadJournal لاستخدام الدالة المساعدة
   void _loadJournal(BoxDocument document) {
     setState(() {
       // تنظيف المتحكمات القديمة
@@ -417,6 +421,7 @@ class _BoxScreenState extends State<BoxScreen> {
       rowFocusNodes.clear();
       accountTypeValues.clear();
       sellerNames.clear();
+      rowSourceTypes.clear(); // <-- إضافة
 
       // تحميل السجلات من الوثيقة
       for (int i = 0; i < document.transactions.length; i++) {
@@ -435,6 +440,7 @@ class _BoxScreenState extends State<BoxScreen> {
 
         // تخزين اسم البائع لهذا الصف
         sellerNames.add(transaction.sellerName);
+        rowSourceTypes.add('box'); // <-- إضافة
 
         // التحقق إذا كان السجل مملوكاً للبائع الحالي
         final bool isOwnedByCurrentSeller =
@@ -448,6 +454,11 @@ class _BoxScreenState extends State<BoxScreen> {
         rowControllers.add(newControllers);
         rowFocusNodes.add(newFocusNodes);
         accountTypeValues.add(transaction.accountType);
+      }
+
+      // ربط مستمعات التركيز لكل الصفوف المحملة
+      for (int i = 0; i < rowFocusNodes.length; i++) {
+        _attachFocusListeners(i); // <-- إضافة
       }
 
       // تحميل المجاميع
@@ -465,18 +476,23 @@ class _BoxScreenState extends State<BoxScreen> {
     const double headerHeight = 32.0;
     const double rowHeight = 25.0;
     final double verticalPosition = (rowIndex * rowHeight);
+    final double verticalTarget = (verticalPosition + headerHeight)
+        .clamp(0, _verticalScrollController.position.maxScrollExtent);
+
     const double columnWidth = 80.0;
     final double horizontalPosition = colIndex * columnWidth;
+    final double horizontalTarget = horizontalPosition.clamp(
+        0, _horizontalScrollController.position.maxScrollExtent);
 
     _verticalScrollController.animateTo(
-      verticalPosition + headerHeight,
-      duration: const Duration(milliseconds: 300),
+      verticalTarget,
+      duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
     );
 
     _horizontalScrollController.animateTo(
-      horizontalPosition,
-      duration: const Duration(milliseconds: 300),
+      horizontalTarget,
+      duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
     );
   }
@@ -609,12 +625,14 @@ class _BoxScreenState extends State<BoxScreen> {
         keyboardType: TextInputType.number,
         enabled:
             isOwnedByCurrentSeller && rowControllers[rowIndex][2].text.isEmpty,
-        style: TextStyle(
-          fontSize: 12,
+        style: const TextStyle(
+          // <-- تغيير إلى const
+          fontSize: 16, // <-- تغيير من 12 إلى 16
           fontWeight: FontWeight.w600,
           color: Colors.black,
         ),
-        decoration: InputDecoration(
+        decoration: const InputDecoration(
+          // <-- تغيير إلى const
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
           border: InputBorder.none,
@@ -722,7 +740,6 @@ class _BoxScreenState extends State<BoxScreen> {
   // تحديث خلية الحساب لدعم كلا النوعين
   Widget _buildAccountCell(
       int rowIndex, int colIndex, bool isOwnedByCurrentSeller) {
-    // 1. استخدام دالة التحقق المركزية
     final bool canEdit = _canEditRow(rowIndex);
 
     final String accountType = accountTypeValues[rowIndex];
@@ -732,18 +749,15 @@ class _BoxScreenState extends State<BoxScreen> {
 
     Widget cellContent;
 
-    // إذا كان نوع الحساب تم اختياره (زبون، مورد، أو مصروف)
     if (accountType.isNotEmpty) {
       cellContent = Container(
         padding: const EdgeInsets.all(1),
         constraints: const BoxConstraints(minHeight: 25),
         child: Row(
           children: [
-            // جزء عرض نوع الحساب وقابلية تغييره
             Expanded(
               flex: 2,
               child: InkWell(
-                // لا يسمح بفتح الديالوج إلا إذا كان يملك الصلاحية
                 onTap: canEdit ? () => _showAccountTypeDialog(rowIndex) : null,
                 child: Container(
                   decoration: BoxDecoration(
@@ -752,7 +766,6 @@ class _BoxScreenState extends State<BoxScreen> {
                       width: 0.5,
                     ),
                     borderRadius: BorderRadius.circular(2),
-                    // تمييز خلفية النوع المختار
                     color: _getAccountTypeColor(accountType).withOpacity(0.1),
                   ),
                   padding:
@@ -761,7 +774,7 @@ class _BoxScreenState extends State<BoxScreen> {
                     child: Text(
                       accountType,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 16, // <-- تغيير من 10 إلى 16
                         color: _getAccountTypeColor(accountType),
                         fontWeight: FontWeight.bold,
                       ),
@@ -774,17 +787,15 @@ class _BoxScreenState extends State<BoxScreen> {
               ),
             ),
             const SizedBox(width: 4),
-            // جزء إدخال اسم الحساب (مع دعم الاقتراحات)
             Expanded(
               flex: 5,
               child: TextField(
                 controller: accountNameController,
                 focusNode: accountNameFocusNode,
                 textAlign: TextAlign.right,
-                // قفل أو فتح الحقل بناءً على الصلاحية
                 enabled: canEdit,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 16, // <-- تغيير من 11 إلى 16
                   fontWeight: FontWeight.w600,
                   color: Colors.black,
                 ),
@@ -795,14 +806,15 @@ class _BoxScreenState extends State<BoxScreen> {
                     borderSide: BorderSide(color: Colors.grey, width: 0.5),
                   ),
                   hintText: _getAccountHintText(accountType),
-                  hintStyle: const TextStyle(fontSize: 10, color: Colors.grey),
+                  hintStyle: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey), // <-- تغيير من 10 إلى 16
                   isDense: true,
                 ),
                 onSubmitted: (value) =>
                     _handleFieldSubmitted(value, rowIndex, colIndex),
                 onChanged: (value) {
                   _hasUnsavedChanges = true;
-                  // تفعيل الاقتراحات حسب النوع
                   if (accountType == 'زبون') {
                     _updateCustomerSuggestions(rowIndex);
                   } else if (accountType == 'مورد') {
@@ -815,36 +827,44 @@ class _BoxScreenState extends State<BoxScreen> {
         ),
       );
     } else {
-      // عرض زر "اختر" في حال كان السجل جديداً ولم يحدد نوعه بعد
-      cellContent = InkWell(
-        onTap: canEdit ? () => _showAccountTypeDialog(rowIndex) : null,
-        child: Container(
-          margin: const EdgeInsets.all(2),
-          height: 25,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
+      // عرض زر "اختر النوع" بنفس تنسيق old
+      cellContent = Container(
+        margin: EdgeInsets.zero,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(3),
+          color: Colors.grey[50],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: canEdit ? () => _showAccountTypeDialog(rowIndex) : null,
             borderRadius: BorderRadius.circular(3),
-            color: Colors.grey[50],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Text('اختر النوع',
-                  style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
-              Icon(Icons.arrow_drop_down, size: 14, color: Colors.blueGrey),
-            ],
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 25),
+              alignment: Alignment.center,
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('اختر النوع',
+                      style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.blueGrey)), // <-- تغيير من 10 إلى 16
+                  Icon(Icons.arrow_drop_down, size: 16, color: Colors.blueGrey),
+                ],
+              ),
+            ),
           ),
         ),
       );
     }
 
-    // 2. تطبيق الحماية البصرية والمنطقية النهائية (مثل شاشة الاستلام)
     if (!canEdit) {
       return IgnorePointer(
         child: Opacity(
-          opacity: 0.6, // جعل السجل باهتاً للدلالة على أنه للقراءة فقط
+          opacity: 0.6,
           child: Container(
-            color: Colors.grey[100], // خلفية رمادية خفيفة
+            color: Colors.grey[100],
             child: cellContent,
           ),
         ),
@@ -880,12 +900,14 @@ class _BoxScreenState extends State<BoxScreen> {
         focusNode: focusNode,
         textAlign: TextAlign.center,
         enabled: isOwnedByCurrentSeller,
-        style: TextStyle(
-          fontSize: 12,
+        style: const TextStyle(
+          // <-- تغيير إلى const
+          fontSize: 16, // <-- تغيير من 12 إلى 16
           fontWeight: FontWeight.w600,
           color: Colors.black,
         ),
-        decoration: InputDecoration(
+        decoration: const InputDecoration(
+          // <-- تغيير إلى const
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
           border: InputBorder.none,
@@ -894,11 +916,6 @@ class _BoxScreenState extends State<BoxScreen> {
         onSubmitted: (value) {
           if (isOwnedByCurrentSeller) {
             _addNewRow();
-            if (rowControllers.isNotEmpty) {
-              final newRowIndex = rowControllers.length - 1;
-              FocusScope.of(context)
-                  .requestFocus(rowFocusNodes[newRowIndex][1]);
-            }
           }
         },
         onChanged: (value) {
@@ -933,7 +950,7 @@ class _BoxScreenState extends State<BoxScreen> {
       case 'مورد':
         return Colors.blue;
       case 'مصروف':
-        return Colors.orange;
+        return Colors.red; // <-- تغيير من orange إلى red ليطابق old
       default:
         return Colors.grey;
     }
@@ -1042,50 +1059,188 @@ class _BoxScreenState extends State<BoxScreen> {
       return;
     }
 
+    int selectedIndex = accountTypeOptions.indexOf(accountTypeValues[rowIndex]);
+    if (selectedIndex == -1) selectedIndex = 0;
+
+    final FocusNode focusNode = FocusNode();
+
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text(
-            'اختر نوع الحساب',
-            style: TextStyle(fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8.0,
-              runSpacing: 8.0,
-              children: accountTypeOptions.map((option) {
-                return ChoiceChip(
-                  label: Text(option),
-                  selected: option == accountTypeValues[rowIndex],
-                  selectedColor: _getAccountTypeColor(option),
-                  backgroundColor: Colors.grey[200],
-                  onSelected: (bool selected) {
-                    if (selected) {
-                      Navigator.pop(context);
-                      _onAccountTypeSelected(option, rowIndex);
-                    }
-                  },
-                );
-              }).toList(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _onAccountTypeCancelled(rowIndex);
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return RawKeyboardListener(
+              focusNode: focusNode,
+              autofocus: true,
+              onKey: (RawKeyEvent event) {
+                if (event is RawKeyDownEvent) {
+                  if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                    setState(() {
+                      selectedIndex =
+                          (selectedIndex - 1 + accountTypeOptions.length) %
+                              accountTypeOptions.length;
+                    });
+                  } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                    setState(() {
+                      selectedIndex =
+                          (selectedIndex + 1) % accountTypeOptions.length;
+                    });
+                  } else if (event.logicalKey == LogicalKeyboardKey.enter ||
+                      event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+                    Navigator.of(context).pop();
+                    _onAccountTypeSelected(
+                        accountTypeOptions[selectedIndex], rowIndex);
+                  } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+                    Navigator.of(context).pop();
+                    _onAccountTypeCancelled(rowIndex);
+                  }
+                }
               },
-              child: const Text('إلغاء'),
-            ),
-          ],
+              child: Directionality(
+                textDirection: TextDirection.rtl,
+                child: Dialog(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  elevation: 8,
+                  child: Container(
+                    width: 400,
+                    constraints: const BoxConstraints(maxWidth: 450),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // العنوان باللون الأزرق
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 16),
+                          decoration: BoxDecoration(
+                            color: const Color.fromARGB(255, 14, 82, 184),
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                            ),
+                          ),
+                          child: const Align(
+                            alignment: Alignment.centerRight,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'اختر نوع الحساب',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Icon(Icons.account_balance_wallet,
+                                    color: Colors.white, size: 24),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // الخيارات
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 20, horizontal: 16),
+                          child: Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 12.0,
+                            runSpacing: 12.0,
+                            textDirection: TextDirection.rtl,
+                            children: List.generate(accountTypeOptions.length,
+                                (index) {
+                              final isSelected = selectedIndex == index;
+                              final option = accountTypeOptions[index];
+                              Color chipColor;
+                              switch (option) {
+                                case 'زبون':
+                                  chipColor = Colors.green;
+                                  break;
+                                case 'مورد':
+                                  chipColor = Colors.blue;
+                                  break;
+                                case 'مصروف':
+                                  chipColor = Colors
+                                      .orange; // <-- تغيير من red إلى orange
+                                  break;
+                                default:
+                                  chipColor = Colors.grey;
+                              }
+                              return MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Navigator.of(context).pop();
+                                    _onAccountTypeSelected(option, rowIndex);
+                                  },
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(32),
+                                      border: isSelected
+                                          ? Border.all(
+                                              color: chipColor, width: 2)
+                                          : null,
+                                    ),
+                                    child: ChoiceChip(
+                                      label: Text(
+                                        option,
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : chipColor,
+                                          fontWeight: isSelected
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                        ),
+                                      ),
+                                      selected: isSelected,
+                                      selectedColor: chipColor,
+                                      backgroundColor:
+                                          chipColor.withOpacity(0.1),
+                                      elevation: 2,
+                                      pressElevation: 4,
+                                      onSelected: (bool selected) {
+                                        if (selected) {
+                                          Navigator.of(context).pop();
+                                          _onAccountTypeSelected(
+                                              option, rowIndex);
+                                        }
+                                      },
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(32),
+                                        side: BorderSide(
+                                            color: chipColor, width: 0.5),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
-    );
+    ).then((_) {
+      focusNode.dispose();
+    });
   }
 
   void _onAccountTypeSelected(String value, int rowIndex) {
@@ -1134,12 +1289,21 @@ class _BoxScreenState extends State<BoxScreen> {
                 ),
                 const SizedBox(width: 8),
                 Focus(
-                  focusNode: FocusNode(),
+                  focusNode: _addButtonFocusNode, // <-- تغيير
                   child: SizedBox(
                     width: 140,
                     height: 80,
                     child: ElevatedButton(
-                      onPressed: _addNewRow,
+                      onPressed: () {
+                        _addNewRow();
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (rowFocusNodes.isNotEmpty) {
+                            final newRowIndex = rowFocusNodes.length - 1;
+                            FocusScope.of(context)
+                                .requestFocus(rowFocusNodes[newRowIndex][0]);
+                          }
+                        });
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color.fromARGB(255, 14, 82, 184),
                         foregroundColor: Colors.white,
@@ -1188,62 +1352,36 @@ class _BoxScreenState extends State<BoxScreen> {
                       'يومية صندوق رقم /$serialNumber/ تاريخ ${widget.selectedDate} البائع ${widget.sellerName}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        height: 1.5,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    // شريط الرصيد المصغر
-                    if (_lastFetchedBalance != null &&
-                        _lastAccountName.isNotEmpty)
-                      Container(
-                        height: 28,
-                        margin: const EdgeInsets.only(top: 2),
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              _lastAccountName.length > 12
-                                  ? '${_lastAccountName.substring(0, 12)}...'
-                                  : _lastAccountName,
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text('الرصيد: ',
-                                style: TextStyle(
-                                    fontSize: 10, color: Colors.white70)),
-                            Text(
-                              _lastFetchedBalance?.toStringAsFixed(2) ?? '0.00',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text('الباقي: ',
-                                style: TextStyle(
-                                    fontSize: 10, color: Colors.white70)),
-                            Text(
-                              _calculatedRemaining?.toStringAsFixed(2) ??
-                                  '0.00',
+                    // <-- إضافة الرصيد الكلي
+                    Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('الرصيد الكلي: ',
                               style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: (_calculatedRemaining ?? 0) >= 0
-                                    ? Colors.lightGreenAccent
-                                    : Colors.redAccent,
-                              ),
+                                  fontSize: 16, color: Colors.white70)),
+                          Text(
+                            (_grandTotalReceived - _grandTotalPaid)
+                                .toStringAsFixed(2),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  (_grandTotalReceived - _grandTotalPaid) >= 0
+                                      ? Colors.lightGreenAccent
+                                      : Colors.redAccent,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -1357,16 +1495,22 @@ class _BoxScreenState extends State<BoxScreen> {
             if (event.logicalKey == LogicalKeyboardKey.enter ||
                 event.logicalKey == LogicalKeyboardKey.numpadEnter) {
               final focusedNode = FocusScope.of(context).focusedChild;
-              if (focusedNode == null) {
+              if (focusedNode == null || focusedNode == _addButtonFocusNode) {
+                // <-- تغيير
                 _addNewRow();
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (rowFocusNodes.isNotEmpty) {
-                    final newRowIndex = rowFocusNodes.length - 1;
-                    FocusScope.of(context)
-                        .requestFocus(rowFocusNodes[newRowIndex][1]);
-                  }
-                });
               }
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+              // <-- إضافة
+              _moveFocus(0, -1);
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+              // <-- إضافة
+              _moveFocus(0, 1);
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+              // <-- إضافة
+              _moveFocus(1, 0);
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+              // <-- إضافة
+              _moveFocus(-1, 0);
             }
           }
         },
@@ -1858,7 +2002,151 @@ class _BoxScreenState extends State<BoxScreen> {
   }
 
   Widget _buildMainContent() {
-    return _buildTableWithStickyHeader();
+    return Stack(
+      children: [
+        Column(
+          children: [
+            _buildBalanceBar(), // <-- إضافة
+            Expanded(
+              child: _buildTableWithStickyHeader(),
+            ),
+            const SizedBox(height: 90), // <-- إضافة مساحة للشريط السفلي
+          ],
+        ),
+        if (rowControllers.length >= 1) // <-- إضافة شريط المجاميع السفلي
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 0, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 14, 82, 184),
+                  borderRadius: BorderRadius.circular(40),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color.fromARGB(255, 14, 82, 184)
+                          .withOpacity(0.45),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('مقبوض',
+                              style: TextStyle(
+                                  color: Colors.white70, fontSize: 12)),
+                          const SizedBox(height: 2),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: totalReceivedController,
+                            builder: (context, value, child) {
+                              return Text(
+                                value.text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.lightGreenAccent,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('مدفوع',
+                              style: TextStyle(
+                                  color: Colors.white70, fontSize: 12)),
+                          const SizedBox(height: 2),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: totalPaidController,
+                            builder: (context, value, child) {
+                              return Text(
+                                value.text,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('الصافي',
+                              style: TextStyle(
+                                  color: Colors.white70, fontSize: 12)),
+                          const SizedBox(height: 2),
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: totalReceivedController,
+                            builder: (context, recValue, child) {
+                              return ValueListenableBuilder<TextEditingValue>(
+                                valueListenable: totalPaidController,
+                                builder: (context, paidValue, child) {
+                                  final net = (double.tryParse(recValue.text) ??
+                                          0) -
+                                      (double.tryParse(paidValue.text) ?? 0);
+                                  return Text(
+                                    net.toStringAsFixed(2),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: net >= 0
+                                          ? Colors.lightBlueAccent
+                                          : Colors.orangeAccent,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    Expanded(
+                      child: Center(
+                        child: const Text(
+                          'المجموع',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
 /*
@@ -2072,6 +2360,178 @@ class _BoxScreenState extends State<BoxScreen> {
       return suggestion.substring(dotIndex + 2).trim();
     }
     return suggestion.trim();
+  }
+
+  Future<void> _loadGrandTotal() async {
+    double totalRec = 0.0, totalPaid = 0.0;
+
+    // 1. جمع أرصدة يوميات الصندوق
+    final boxDates = await _storageService.getAvailableDatesWithNumbers();
+    for (var dateInfo in boxDates) {
+      final doc =
+          await _storageService.loadBoxDocumentForDate(dateInfo['date']!);
+      if (doc != null) {
+        for (var transaction in doc.transactions) {
+          totalRec += double.tryParse(transaction.received) ?? 0;
+          totalPaid += double.tryParse(transaction.paid) ?? 0;
+        }
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _grandTotalReceived = totalRec;
+        _grandTotalPaid = totalPaid;
+      });
+    }
+  }
+
+  // ========== دوال التحكم بالأسهم ==========
+
+  void _attachFocusListeners(int rowIndex) {
+    for (int col = 0; col < rowFocusNodes[rowIndex].length; col++) {
+      rowFocusNodes[rowIndex][col].removeListener(() {});
+      rowFocusNodes[rowIndex][col].addListener(() {
+        if (rowFocusNodes[rowIndex][col].hasFocus) {
+          _currentFocusRow = rowIndex;
+          _currentFocusCol = col;
+          _scrollToField(rowIndex, col);
+        }
+      });
+    }
+  }
+
+  void _moveFocus(int deltaRow, int deltaCol) {
+    if (_currentFocusRow == -1 || _currentFocusCol == -1) {
+      if (rowFocusNodes.isNotEmpty && rowFocusNodes[0].length > 1) {
+        _currentFocusRow = 0;
+        _currentFocusCol =
+            1; // ابدأ من حقل المقبوض (رقم 1) وليس المسلسل (رقم 0)
+        FocusScope.of(context).requestFocus(rowFocusNodes[0][1]);
+        _scrollToField(0, 1);
+        _adjustScrollPosition(0);
+      }
+      return;
+    }
+
+    int newRow = _currentFocusRow + deltaRow;
+    int newCol = _currentFocusCol + deltaCol;
+
+    // حدود الصفوف
+    if (newRow < 0) newRow = 0;
+    if (newRow >= rowFocusNodes.length) newRow = rowFocusNodes.length - 1;
+
+    // حدود الأعمدة: فقط المقبوض(1) والمدفوع(2) - لا نذهب إلى المسلسل(0) أبداً
+    const int minCol = 1; // <-- تغيير من 0 إلى 1
+    const int maxCol = 2; // <-- تغيير من 1 إلى 2
+    if (newCol < minCol) newCol = minCol;
+    if (newCol > maxCol) newCol = maxCol;
+
+    FocusScope.of(context).requestFocus(rowFocusNodes[newRow][newCol]);
+    _currentFocusRow = newRow;
+    _currentFocusCol = newCol;
+
+    _scrollToField(newRow, newCol);
+    _adjustScrollPosition(newRow);
+  }
+
+  void _adjustScrollPosition(int currentRowIndex) {
+    final int totalRows = rowFocusNodes.length;
+    if (totalRows == 0) return;
+
+    if (currentRowIndex <= 2) {
+      _verticalScrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    } else if (totalRows - currentRowIndex <= 3) {
+      _verticalScrollController.animateTo(
+        _verticalScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Widget _buildBalanceBar() {
+    if (_lastFetchedBalance == null || _lastAccountName.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.blue[900],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'الحساب',
+                  style: TextStyle(fontSize: 16, color: Colors.white70),
+                ),
+                Text(
+                  _lastAccountName.length > 14
+                      ? '${_lastAccountName.substring(0, 14)}...'
+                      : _lastAccountName,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
+                ),
+              ],
+            ),
+            Container(width: 1, height: 30, color: Colors.white24),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('الرصيد',
+                    style: TextStyle(fontSize: 16, color: Colors.white70)),
+                Text(
+                  _lastFetchedBalance?.toStringAsFixed(2) ?? '0.00',
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
+                ),
+              ],
+            ),
+            Container(width: 1, height: 30, color: Colors.white24),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('الباقي',
+                    style: TextStyle(fontSize: 16, color: Colors.white70)),
+                Text(
+                  _calculatedRemaining?.toStringAsFixed(2) ?? '0.00',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: (_calculatedRemaining ?? 0) >= 0
+                        ? Colors.lightGreenAccent
+                        : Colors.redAccent,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

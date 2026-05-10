@@ -44,7 +44,7 @@ dependencies:
 
   window_manager: ^0.4.3
 
-  printing: ^5.14.3
+  #printing: ^5.14.3
 
 dev_dependencies:
   flutter_test:

@@ -1,7 +1,7 @@
-// widgets/common_dialogs.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-// نافذة اختيار طريقة الدفع
+// نافذة اختيار طريقة الدفع (نسخة محسنة للكمبيوتر)
 void showCashOrDebtDialog({
   required BuildContext context,
   required String currentValue,
@@ -9,50 +9,170 @@ void showCashOrDebtDialog({
   required ValueChanged<String> onSelected,
   required VoidCallback onCancel,
 }) {
+  int selectedIndex = options.indexOf(currentValue);
+  if (selectedIndex == -1) selectedIndex = 0;
+
+  final FocusNode focusNode = FocusNode();
+
   showDialog(
     context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: const Text('اختر طريقة الدفع'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: options.map((option) {
-              return ListTile(
-                title: Text(option),
-                leading: Radio<String>(
-                  value: option,
-                  groupValue: currentValue,
-                  onChanged: (String? value) {
-                    if (value != null) {
-                      onSelected(value);
-                      Navigator.of(context).pop();
-                    }
-                  },
-                ),
-                onTap: () {
-                  onSelected(option);
-                  Navigator.of(context).pop();
-                },
-              );
-            }).toList(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              onCancel();
-              Navigator.of(context).pop();
+    barrierDismissible: true,
+    builder: (BuildContext dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return RawKeyboardListener(
+            focusNode: focusNode,
+            autofocus: true,
+            onKey: (RawKeyEvent event) {
+              if (event is RawKeyDownEvent) {
+                if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                  setState(() {
+                    selectedIndex = (selectedIndex + 1) % options.length;
+                  });
+                } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                  setState(() {
+                    selectedIndex =
+                        (selectedIndex - 1 + options.length) % options.length;
+                  });
+                } else if (event.logicalKey == LogicalKeyboardKey.enter ||
+                    event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+                  // إغلاق الحوار باستخدام dialogContext
+                  Navigator.of(dialogContext).pop();
+                  onSelected(options[selectedIndex]);
+                } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+                  // إغلاق الحوار فقط باستخدام dialogContext
+                  Navigator.of(dialogContext).pop();
+                  onCancel();
+                  return; // منع انتشار الحدث
+                }
+              }
             },
-            child: const Text('إلغاء'),
-          ),
-        ],
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Dialog(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                elevation: 8,
+                child: Container(
+                  width: 400,
+                  constraints: const BoxConstraints(maxWidth: 450),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // العنوان
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.red[700],
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(16),
+                            topRight: Radius.circular(16),
+                          ),
+                        ),
+                        child: const Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'اختر طريقة الدفع',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Icon(Icons.payment,
+                                  color: Colors.white, size: 24),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // الخيارات
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 8),
+                        child: Column(
+                          children: List.generate(options.length, (index) {
+                            final isSelected = selectedIndex == index;
+                            return MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.of(dialogContext).pop();
+                                  onSelected(options[index]);
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(
+                                      vertical: 4, horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? Colors.red[50]
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: isSelected
+                                        ? Border.all(
+                                            color: Colors.red[700]!, width: 1.5)
+                                        : null,
+                                  ),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    leading: Radio<String>(
+                                      value: options[index],
+                                      groupValue: options[selectedIndex],
+                                      onChanged: (_) {
+                                        Navigator.of(dialogContext).pop();
+                                        onSelected(options[index]);
+                                      },
+                                      activeColor: Colors.red[700],
+                                    ),
+                                    title: Text(
+                                      options[index],
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: isSelected
+                                            ? Colors.red[700]
+                                            : Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                      // الأزرار
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       );
     },
-  );
+  ).then((_) {
+    focusNode.dispose();
+  });
 }
 
-// أضف هذه الدالة في ملف common_dialogs.dart
+// نافذة اختيار نوع الحساب
 Future<void> showAccountTypeDialog({
   required BuildContext context,
   required String currentValue,
@@ -67,7 +187,9 @@ Future<void> showAccountTypeDialog({
       return AlertDialog(
         title: const Text(
           'اختر نوع الحساب',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.black), // ✅ إضافة اللون الأسود
           textAlign: TextAlign.center,
         ),
         content: SingleChildScrollView(
@@ -84,8 +206,9 @@ Future<void> showAccountTypeDialog({
                       fontWeight: option == currentValue
                           ? FontWeight.bold
                           : FontWeight.normal,
-                      color:
-                          option == currentValue ? Colors.blue : Colors.black,
+                      color: option == currentValue
+                          ? Colors.blue
+                          : Colors.black, // ✅ تعديل اللون
                     ),
                   ),
                   onTap: () {
@@ -103,7 +226,8 @@ Future<void> showAccountTypeDialog({
               Navigator.pop(context);
               onCancel();
             },
-            child: const Text('إلغاء'),
+            child: const Text('إلغاء',
+                style: TextStyle(color: Colors.black)), // ✅ إضافة اللون الأسود
           ),
         ],
       );
@@ -119,61 +243,173 @@ void showEmptiesDialog({
   required ValueChanged<String> onSelected,
   required VoidCallback onCancel,
 }) {
-  String tempValue = currentValue;
+  int selectedIndex = options.indexOf(currentValue);
+  if (selectedIndex == -1) selectedIndex = 0;
+
+  final FocusNode focusNode = FocusNode();
+
   showDialog(
     context: context,
-    builder: (BuildContext context) {
+    barrierDismissible: true,
+    builder: (BuildContext dialogContext) {
       return StatefulBuilder(
         builder: (context, setState) {
-          return AlertDialog(
-            title: const Text('اختر حالة الفوارغ'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: options.map((option) {
-                  return ListTile(
-                    title: Text(option),
-                    leading: Radio<String>(
-                      value: option,
-                      groupValue: tempValue,
-                      onChanged: (String? value) {
-                        if (value != null) {
-                          setState(() => tempValue = value);
-                          onSelected(value);
-                          Future.delayed(const Duration(milliseconds: 200), () {
-                            if (context.mounted) Navigator.of(context).pop();
-                          });
-                        }
-                      },
-                    ),
-                    onTap: () {
-                      setState(() => tempValue = option);
-                      onSelected(option);
-                      Future.delayed(const Duration(milliseconds: 200), () {
-                        if (context.mounted) Navigator.of(context).pop();
-                      });
-                    },
-                  );
-                }).toList(),
+          return RawKeyboardListener(
+            focusNode: focusNode,
+            autofocus: true,
+            onKey: (RawKeyEvent event) {
+              if (event is RawKeyDownEvent) {
+                if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                  setState(() {
+                    selectedIndex = (selectedIndex + 1) % options.length;
+                  });
+                } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                  setState(() {
+                    selectedIndex =
+                        (selectedIndex - 1 + options.length) % options.length;
+                  });
+                } else if (event.logicalKey == LogicalKeyboardKey.enter ||
+                    event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+                  Navigator.of(dialogContext).pop();
+                  onSelected(options[selectedIndex]);
+                } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+                  Navigator.of(dialogContext).pop();
+                  onCancel();
+                  return;
+                }
+              }
+            },
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Dialog(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                elevation: 8,
+                child: Container(
+                  width: 400,
+                  constraints: const BoxConstraints(maxWidth: 450),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // العنوان باللون الأزرق
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(
+                          color: const Color.fromARGB(255, 14, 82, 184), // أزرق
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(16),
+                            topRight: Radius.circular(16),
+                          ),
+                        ),
+                        child: const Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'اختر حالة الفوارغ',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Icon(Icons.inventory_2,
+                                  color: Colors.white, size: 24),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // الخيارات
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 8),
+                        child: Column(
+                          children: List.generate(options.length, (index) {
+                            final isSelected = selectedIndex == index;
+                            return MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.of(dialogContext).pop();
+                                  onSelected(options[index]);
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(
+                                      vertical: 4, horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color.fromARGB(255, 14, 82, 184)
+                                            .withOpacity(0.1)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: isSelected
+                                        ? Border.all(
+                                            color: const Color.fromARGB(
+                                                255, 14, 82, 184),
+                                            width: 1.5)
+                                        : null,
+                                  ),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    leading: Radio<String>(
+                                      value: options[index],
+                                      groupValue: options[selectedIndex],
+                                      onChanged: (_) {
+                                        Navigator.of(dialogContext).pop();
+                                        onSelected(options[index]);
+                                      },
+                                      activeColor: const Color.fromARGB(
+                                          255, 14, 82, 184), // أزرق
+                                    ),
+                                    title: Text(
+                                      options[index],
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: isSelected
+                                            ? const Color.fromARGB(
+                                                255, 14, 82, 184)
+                                            : Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                      // الأزرار (فارغة للحفاظ على نفس التنسيق)
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  onCancel();
-                  Navigator.of(context).pop();
-                },
-                child: const Text('إلغاء'),
-              ),
-            ],
           );
         },
       );
     },
-  );
+  ).then((_) {
+    focusNode.dispose();
+  });
 }
 
-// نافذة مشاركة الملف
+// باقي الدوال كما هي...
 void showFilePathDialog({
   required BuildContext context,
   required String filePath,
@@ -181,12 +417,13 @@ void showFilePathDialog({
   showDialog(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('مسار الملف'),
+      title: const Text('مسار الملف', style: TextStyle(color: Colors.black)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('يمكنك نسخ المسار أدناه:'),
+          const Text('يمكنك نسخ المسار أدناه:',
+              style: TextStyle(color: Colors.black)),
           const SizedBox(height: 8),
           SelectableText(
             filePath,
@@ -202,14 +439,13 @@ void showFilePathDialog({
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('موافق'),
+          child: const Text('موافق', style: TextStyle(color: Colors.black)),
         ),
       ],
     ),
   );
 }
 
-// نافذة تأكيد الحذف
 Future<bool?> showDeleteConfirmationDialog({
   required BuildContext context,
   required String recordNumber,
@@ -217,12 +453,13 @@ Future<bool?> showDeleteConfirmationDialog({
   return showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('تأكيد الحذف'),
-      content: Text('هل تريد حذف السجل رقم $recordNumber؟'),
+      title: const Text('تأكيد الحذف', style: TextStyle(color: Colors.black)),
+      content: Text('هل تريد حذف السجل رقم $recordNumber؟',
+          style: const TextStyle(color: Colors.black)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: const Text('إلغاء'),
+          child: const Text('إلغاء', style: TextStyle(color: Colors.black)),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, true),

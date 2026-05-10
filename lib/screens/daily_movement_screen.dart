@@ -112,7 +112,7 @@ class _DailyMovementScreenState extends State<DailyMovementScreen> {
       {
         'icon': Icons.receipt_long,
         'label': 'الفواتير',
-        'color': Colors.indigo[700]!,
+        'color': Colors.blueGrey[600]!,
         'onTap': () {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -127,7 +127,7 @@ class _DailyMovementScreenState extends State<DailyMovementScreen> {
       {
         'icon': Icons.account_balance,
         'label': 'الصندوق',
-        'color': Colors.blueGrey[600]!,
+        'color': const Color.fromARGB(255, 14, 82, 184),
         'onTap': () {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -351,7 +351,7 @@ class _DailyMovementScreenState extends State<DailyMovementScreen> {
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             centerTitle: true,
-            backgroundColor: Colors.green[600],
+            backgroundColor: const Color.fromARGB(255, 67, 165, 72),
             foregroundColor: Colors.white,
             leadingWidth: 100, // ← أضف هذا السطر لتوسيع مساحة الـ leading
             leading: ExitButton(
@@ -572,7 +572,8 @@ class _DailyMovementScreenState extends State<DailyMovementScreen> {
           child: Material(
             elevation: hasFocus ? 20 : 8,
             borderRadius: BorderRadius.circular(20),
-            shadowColor: hasFocus ? Colors.amber : color.withOpacity(0.5),
+            shadowColor:
+                hasFocus ? const Color(0xFFFFD700) : color.withOpacity(0.5),
             child: InkWell(
               onTap: isEnabled
                   ? () {
@@ -591,24 +592,50 @@ class _DailyMovementScreenState extends State<DailyMovementScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: hasFocus
-                        ? [Colors.amber.shade600, Colors.orange.shade800]
+                        ? [
+                            const Color(0xFF1B5E20), // أخضر غامق
+                            const Color(0xFF2E7D32), // أخضر متوسط
+                            const Color(0xFF388E3C), // أخضر فاتح
+                            const Color(0xFF4CAF50), // أخضر ساطع
+                          ]
                         : [
                             isEnabled ? color : Colors.grey[400]!,
                             isEnabled
                                 ? color.withOpacity(0.7)
-                                : Colors.grey[300]!
+                                : Colors.grey[300]!,
                           ],
+                    stops: hasFocus ? const [0.0, 0.3, 0.7, 1.0] : null,
                   ),
                   borderRadius: BorderRadius.circular(20),
                   border: hasFocus
-                      ? Border.all(color: Colors.black, width: 6)
-                      : Border.all(color: Colors.transparent, width: 4),
+                      ? Border.all(
+                          color: const Color(0xFFFFD700), // إطار ذهبي
+                          width: 6)
+                      : Border.all(
+                          color: const Color.fromARGB(0, 241, 66, 66),
+                          width: 4),
                   boxShadow: hasFocus
                       ? [
+                          // تأثير التوهج الذهبي والأخضر
                           BoxShadow(
-                            color: Colors.amber.withOpacity(0.6),
-                            blurRadius: 25,
-                            spreadRadius: 3,
+                            color: const Color(0xFFFFD700)
+                                .withOpacity(0.8), // ذهبي
+                            blurRadius: 30,
+                            spreadRadius: 5,
+                            offset: const Offset(0, 0),
+                          ),
+                          BoxShadow(
+                            color: const Color(0xFF4CAF50)
+                                .withOpacity(0.5), // أخضر
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                            offset: const Offset(0, 8),
+                          ),
+                          BoxShadow(
+                            color: const Color(0xFF81C784)
+                                .withOpacity(0.4), // أخضر فاتح
+                            blurRadius: 40,
+                            spreadRadius: 8,
                             offset: const Offset(0, 0),
                           ),
                         ]
@@ -622,63 +649,122 @@ class _DailyMovementScreenState extends State<DailyMovementScreen> {
                             ]
                           : null,
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Stack(
                   children: [
-                    AnimatedRotation(
-                      turns: hasFocus ? 0.05 : 0.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: AnimatedScale(
-                        scale: hasFocus ? 1.2 : 1.0,
-                        duration: const Duration(milliseconds: 300),
-                        child: Icon(
-                          icon,
-                          size: hasFocus ? 85 : 70,
-                          color: hasFocus
-                              ? Colors.yellowAccent
-                              : (isEnabled ? Colors.white : Colors.grey[200]),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: isEnabled ? Colors.white : Colors.grey[200],
-                        fontSize: 25,
-                        fontWeight: FontWeight.bold,
-                        shadows: hasFocus
-                            ? [
-                                const Shadow(
-                                  color: Colors.black26,
-                                  blurRadius: 4,
-                                )
-                              ]
-                            : null,
-                      ),
-                    ),
-                    if (isServicesButton && isAdmin)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4.0),
-                        child: Icon(
-                          Icons.star,
-                          size: hasFocus ? 35 : 30,
-                          color: Colors.yellow,
-                        ),
-                      ),
+                    // تأثير الإطار اللامع
                     if (hasFocus)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
+                      Positioned(
+                        top: -2,
+                        left: -2,
+                        right: -2,
+                        bottom: -2,
                         child: Container(
-                          width: 40,
-                          height: 3,
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(2),
+                            borderRadius: BorderRadius.circular(22),
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFFFFD700)
+                                    .withOpacity(0.6), // ذهبي
+                                const Color(0xFFFFF176)
+                                    .withOpacity(0.4), // أصفر فاتح
+                                const Color(0xFF4CAF50)
+                                    .withOpacity(0.5), // أخضر
+                                const Color(0xFFFFD700)
+                                    .withOpacity(0.6), // ذهبي
+                              ],
+                            ),
                           ),
                         ),
                       ),
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AnimatedRotation(
+                            turns: hasFocus ? 0.05 : 0.0,
+                            duration: const Duration(milliseconds: 300),
+                            child: AnimatedScale(
+                              scale: hasFocus ? 1.2 : 1.0,
+                              duration: const Duration(milliseconds: 300),
+                              child: Icon(
+                                icon,
+                                size: hasFocus ? 85 : 70,
+                                color: hasFocus
+                                    ? const Color(0xFFFFD700) // أيقونة ذهبية
+                                    : (isEnabled
+                                        ? Colors.white
+                                        : Colors.grey[200]),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: hasFocus
+                                  ? const Color(0xFFFFF9C4) // نص أصفر فاتح
+                                  : (isEnabled
+                                      ? Colors.white
+                                      : Colors.grey[200]),
+                              fontSize: hasFocus ? 30 : 25,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: hasFocus ? 1.5 : 1.0,
+                              shadows: hasFocus
+                                  ? [
+                                      Shadow(
+                                        color: const Color(0xFFFFD700)
+                                            .withOpacity(0.9), // ظل ذهبي
+                                        blurRadius: 15,
+                                      ),
+                                      const Shadow(
+                                        color: Colors.black54,
+                                        blurRadius: 4,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          ),
+                          if (isServicesButton && isAdmin)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Icon(
+                                Icons.star,
+                                size: hasFocus ? 35 : 30,
+                                color: hasFocus
+                                    ? const Color(0xFFFFD700) // نجمة ذهبية
+                                    : Colors.yellow,
+                              ),
+                            ),
+                          if (hasFocus)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 15),
+                              child: Container(
+                                width: 60,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFFFFD700), // ذهبي
+                                      Color(0xFFFFF176), // أصفر فاتح
+                                      Color(0xFF4CAF50), // أخضر
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(5),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFFFD700)
+                                          .withOpacity(0.9),
+                                      blurRadius: 10,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

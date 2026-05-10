@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:printing/printing.dart';
 
 class PdfActionMenu extends StatelessWidget {
   final Future<List<dynamic>> Function() getItems;
@@ -93,10 +92,6 @@ class PdfActionMenu extends StatelessWidget {
     try {
       final pdfBytes = await _generatePdfBytes();
       final fileName = _buildFileName();
-      await Printing.sharePdf(
-        bytes: pdfBytes,
-        filename: fileName,
-      );
     } catch (e) {
       rethrow;
     }

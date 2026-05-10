@@ -15,11 +15,8 @@ import '../../widgets/exit_button.dart';
 import '../../services/supplier_balance_tracker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import '../../widgets/pdf_action_menu.dart';
 
@@ -1232,50 +1229,6 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
             getItems: () async => rowControllers,
             generatePdfCallback: (items) => _generatePdfBytes(items),
           ),
-          IconButton(
-            icon: _isSaving
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : Stack(
-                    children: [
-                      const Icon(Icons.save),
-                      if (_hasUnsavedChanges)
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 12,
-                              minHeight: 12,
-                            ),
-                            child: const SizedBox(
-                              width: 8,
-                              height: 8,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-            tooltip: _hasUnsavedChanges
-                ? 'هناك تغييرات غير محفوظة - انقر للحفظ'
-                : 'حفظ اليومية',
-            onPressed: _isSaving
-                ? null
-                : () {
-                    _saveCurrentRecord();
-                  },
-          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.calendar_month, size: 60),
             tooltip: 'فتح يومية سابقة',
@@ -1655,153 +1608,6 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
     }
     // البائع العادي يعدل سجلاته فقط
     return sellerNames[rowIndex] == widget.sellerName;
-  }
-
-  // --- دالة توليد PDF والمشاركة (PurchasesScreen) ---
-  Future<void> _generateAndSharePdf() async {
-    try {
-      final pdf = pw.Document();
-
-      var arabicFont;
-      try {
-        final fontData =
-            await rootBundle.load("assets/fonts/Cairo-Regular.ttf");
-        arabicFont = pw.Font.ttf(fontData);
-      } catch (e) {
-        arabicFont = pw.Font.courier();
-      }
-
-      final PdfColor headerColor = PdfColor.fromInt(0xFFD32F2F);
-      final PdfColor headerTextColor = PdfColors.white;
-      final PdfColor rowEvenColor = PdfColors.white;
-      final PdfColor rowOddColor = PdfColor.fromInt(0xFFFFCDD2);
-      final PdfColor borderColor = PdfColor.fromInt(0xFFE0E0E0);
-
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          orientation: pw.PageOrientation.landscape,
-          textDirection: pw.TextDirection.rtl,
-          theme: pw.ThemeData.withFont(base: arabicFont, bold: arabicFont),
-          build: (pw.Context context) {
-            return [
-              pw.Directionality(
-                textDirection: pw.TextDirection.rtl,
-                child: pw.Column(
-                  children: [
-                    pw.Center(
-                        child: pw.Text('يومية مشتريات رقم /$serialNumber/',
-                            style: pw.TextStyle(
-                                fontSize: 16, fontWeight: pw.FontWeight.bold))),
-                    pw.Center(
-                        child: pw.Text(
-                            'تاريخ ${widget.selectedDate} - البائع ${widget.sellerName}',
-                            style: const pw.TextStyle(
-                                fontSize: 12, color: PdfColors.grey700))),
-                    pw.SizedBox(height: 10),
-                    pw.Table(
-                      border:
-                          pw.TableBorder.all(color: borderColor, width: 0.5),
-                      columnWidths: {
-                        0: const pw.FlexColumnWidth(2),
-                        1: const pw.FlexColumnWidth(2),
-                        2: const pw.FlexColumnWidth(3),
-                        3: const pw.FlexColumnWidth(2),
-                        4: const pw.FlexColumnWidth(2),
-                        5: const pw.FlexColumnWidth(2),
-                        6: const pw.FlexColumnWidth(3),
-                        7: const pw.FlexColumnWidth(2),
-                        8: const pw.FlexColumnWidth(3),
-                        9: const pw.FlexColumnWidth(4),
-                        10: const pw.FlexColumnWidth(1),
-                      },
-                      children: [
-                        pw.TableRow(
-                          decoration: pw.BoxDecoration(color: headerColor),
-                          children: [
-                            _buildPdfHeaderCell('فوارغ', headerTextColor),
-                            _buildPdfHeaderCell('نوع', headerTextColor),
-                            _buildPdfHeaderCell('الإجمالي', headerTextColor),
-                            _buildPdfHeaderCell('السعر', headerTextColor),
-                            _buildPdfHeaderCell('الصافي', headerTextColor),
-                            _buildPdfHeaderCell('القائم', headerTextColor),
-                            _buildPdfHeaderCell('العبوة', headerTextColor),
-                            _buildPdfHeaderCell('العدد', headerTextColor),
-                            _buildPdfHeaderCell('العائدية', headerTextColor),
-                            _buildPdfHeaderCell('المادة', headerTextColor),
-                            _buildPdfHeaderCell('ت', headerTextColor),
-                          ],
-                        ),
-                        ...rowControllers.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final controllers = entry.value;
-                          if (controllers[1].text.isEmpty &&
-                              controllers[3].text.isEmpty) {
-                            return pw.TableRow(
-                                children: List.filled(11, pw.SizedBox()));
-                          }
-                          final color =
-                              index % 2 == 0 ? rowEvenColor : rowOddColor;
-                          return pw.TableRow(
-                            decoration: pw.BoxDecoration(color: color),
-                            children: [
-                              _buildPdfCell(emptiesValues[index]),
-                              _buildPdfCell(cashOrDebtValues[index]),
-                              _buildPdfCell(controllers[8].text, isBold: true),
-                              _buildPdfCell(controllers[7].text),
-                              _buildPdfCell(controllers[6].text),
-                              _buildPdfCell(controllers[5].text),
-                              _buildPdfCell(controllers[4].text),
-                              _buildPdfCell(controllers[3].text),
-                              _buildPdfCell(controllers[2].text),
-                              _buildPdfCell(controllers[1].text),
-                              _buildPdfCell(controllers[0].text),
-                            ],
-                          );
-                        }).toList(),
-                        pw.TableRow(
-                          decoration: pw.BoxDecoration(
-                              color: PdfColor.fromInt(0xFFEF9A9A)),
-                          children: [
-                            _buildPdfCell(''),
-                            _buildPdfCell(''),
-                            _buildPdfCell(totalGrandController.text,
-                                isBold: true),
-                            _buildPdfCell(''),
-                            _buildPdfCell(totalNetController.text,
-                                isBold: true),
-                            _buildPdfCell(totalBaseController.text,
-                                isBold: true),
-                            _buildPdfCell(''),
-                            _buildPdfCell(totalCountController.text,
-                                isBold: true),
-                            _buildPdfCell(''),
-                            _buildPdfCell(''),
-                            _buildPdfCell('م', isBold: true),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ];
-          },
-        ),
-      );
-
-      final output = await getTemporaryDirectory();
-      // *** إصلاح اسم الملف ***
-      final safeDate = widget.selectedDate.replaceAll('/', '-');
-      final file = File("${output.path}/يومية_مشتريات_$safeDate.pdf");
-
-      await file.writeAsBytes(await pdf.save());
-      await Share.shareXFiles([XFile(file.path)],
-          text: 'يومية مشتريات ${widget.selectedDate}');
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
-    }
   }
 
   pw.Widget _buildPdfHeaderCell(String text, PdfColor color) {

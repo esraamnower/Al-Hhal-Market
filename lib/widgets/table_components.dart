@@ -95,23 +95,23 @@ Widget buildTableHeaderCell(String text) {
   return Container(
     padding: const EdgeInsets.all(2),
     constraints: const BoxConstraints(minHeight: 30),
-    child: Center(
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-        ),
-        textAlign: TextAlign.center,
-        maxLines: 2,
+    alignment: Alignment.center,
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
       ),
+      textAlign: TextAlign.center,
+      maxLines: 2,
     ),
   );
 }
 
-// خلية المجموع
+// خلية المجموع - نسخة موحدة (للأرقام فقط)
 Widget buildTotalCell(TextEditingController controller) {
   return Container(
+    alignment: Alignment.center,
     padding: const EdgeInsets.all(1),
     constraints: const BoxConstraints(minHeight: 25),
     decoration: BoxDecoration(
@@ -122,17 +122,38 @@ Widget buildTotalCell(TextEditingController controller) {
       decoration: const InputDecoration(
         contentPadding: EdgeInsets.symmetric(horizontal: 2, vertical: 1),
         border: InputBorder.none,
-        hintStyle: TextStyle(fontSize: 13),
       ),
-      style: TextStyle(
-        fontSize: 13,
+      style: const TextStyle(
+        fontSize: 17,
         fontWeight: FontWeight.bold,
-        color: Colors.red[700],
+        color: Colors.red,
       ),
+      textAlign: TextAlign.center,
       maxLines: 1,
       keyboardType: TextInputType.number,
       enabled: false,
       readOnly: true,
+    ),
+  );
+}
+
+// خلية المجموع - نسخة موحدة (للنصوص مثل "المجموع")
+Widget buildTotalLabelCell(String label) {
+  return Container(
+    alignment: Alignment.center,
+    padding: const EdgeInsets.all(1),
+    constraints: const BoxConstraints(minHeight: 25),
+    decoration: BoxDecoration(
+      color: Colors.yellow[100],
+    ),
+    child: Text(
+      label,
+      style: const TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.bold,
+        color: Colors.red,
+      ),
+      textAlign: TextAlign.center,
     ),
   );
 }
@@ -142,19 +163,21 @@ Widget buildTotalValueCell(TextEditingController controller) {
   return Container(
     padding: const EdgeInsets.all(1),
     constraints: const BoxConstraints(minHeight: 25),
+    alignment: Alignment.center,
     child: TextField(
       controller: controller,
       decoration: const InputDecoration(
         contentPadding: EdgeInsets.symmetric(horizontal: 2, vertical: 1),
         border: InputBorder.none,
         hintText: '0.00',
-        hintStyle: TextStyle(fontSize: 13, color: Colors.grey),
+        hintStyle: TextStyle(fontSize: 17, color: Colors.grey),
       ),
       style: const TextStyle(
-        fontSize: 13,
+        fontSize: 17,
         fontWeight: FontWeight.bold,
         color: Colors.blue,
       ),
+      textAlign: TextAlign.center,
       maxLines: 1,
       keyboardType: TextInputType.number,
       enabled: false,
@@ -163,7 +186,7 @@ Widget buildTotalValueCell(TextEditingController controller) {
   );
 }
 
-// خلية الفوارغ
+// خلية الفوارغ - بنفس تنسيق نقدي/دين مع اللون الأزرق
 Widget buildEmptiesCell({
   required String value,
   required VoidCallback onTap,
@@ -180,36 +203,53 @@ Widget buildEmptiesCell({
         scrollToField(rowIndex, colIndex);
       },
       child: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey[300]!),
-          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: _getEmptiesColor(value),
+            width: 2,
+          ),
+          borderRadius: BorderRadius.circular(4),
+          color: _getEmptiesColor(value).withOpacity(0.05),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Text(
-                value.isEmpty ? 'اختر' : value,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: value.isEmpty ? Colors.grey : Colors.black,
-                  fontWeight:
-                      value.isEmpty ? FontWeight.normal : FontWeight.bold,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Center(
+          child: value.isEmpty
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'اختر',
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                      textAlign: TextAlign.center,
+                    ),
+                    Icon(
+                      Icons.arrow_drop_down,
+                      size: 20,
+                      color: Colors.grey[600],
+                    ),
+                  ],
+                )
+              : Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: _getEmptiesColor(value),
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Icon(
-              Icons.arrow_drop_down,
-              size: 16,
-              color: Colors.grey[600],
-            ),
-          ],
         ),
       ),
     ),
   );
+}
+
+// دالة مساعدة للحصول على لون خلية الفوارغ
+Color _getEmptiesColor(String value) {
+  if (value.isNotEmpty) {
+    return const Color.fromARGB(255, 14, 82, 184); // أزرق
+  }
+  return Colors.grey;
 }

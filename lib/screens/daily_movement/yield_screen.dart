@@ -4,7 +4,8 @@ import 'dart:convert';
 import '../../services/purchase_storage_service.dart';
 import '../../services/box_storage_service.dart';
 import '../../services/receipt_storage_service.dart';
-import '../../services/sales_storage_service.dart'; // إضافة لشاشة المبيعات
+import '../../services/sales_storage_service.dart';
+import '../../widgets/exit_button.dart';
 
 class YieldScreen extends StatefulWidget {
   final String sellerName;
@@ -288,13 +289,15 @@ class _YieldScreenState extends State<YieldScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 50),
               child: DropdownButtonFormField<String>(
                 value: _selectedSeller,
-                hint: Text(
+                hint: const Text(
                   'اختر اسم البائع',
                   style: TextStyle(color: Colors.white70),
                   textAlign: TextAlign.center,
                 ),
+                alignment: AlignmentDirectional.center,
                 items: _sellersList.map((seller) {
                   return DropdownMenuItem<String>(
+                    alignment: AlignmentDirectional.center,
                     value: seller,
                     child: Text(
                       seller,
@@ -324,12 +327,15 @@ class _YieldScreenState extends State<YieldScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white, width: 2),
+                    borderSide: const BorderSide(color: Colors.white, width: 2),
                   ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),
                 dropdownColor: Colors.white,
-                icon: Icon(Icons.arrow_drop_down, color: Colors.white),
+                icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                 style: TextStyle(color: Colors.teal[700], fontSize: 16),
+                isExpanded: true,
               ),
             ),
             const SizedBox(height: 20),
@@ -445,184 +451,217 @@ class _YieldScreenState extends State<YieldScreen> {
   Widget _buildYieldScreen() {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.selectedDate != null
-              ? 'غلة البائع: ${_sellerNameController.text} بتاريخ ${widget.selectedDate}'
-              : 'غلة البائع: ${_sellerNameController.text}',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis, // تقصير النص إذا كان طويلاً
-          maxLines: 1, // تحديد سطر واحد فقط
+        automaticallyImplyLeading: false,
+        titleSpacing: 0,
+        toolbarHeight: kToolbarHeight + 20,
+        title: Row(
+          children: [
+            ExitButton(
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                widget.selectedDate != null
+                    ? 'غلة البائع: ${_sellerNameController.text} بتاريخ ${widget.selectedDate}'
+                    : 'غلة البائع: ${_sellerNameController.text}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _refreshData,
+                  tooltip: 'تحديث البيانات',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: _logout,
+                  tooltip: 'تسجيل الخروج',
+                ),
+              ],
+            ),
+          ],
         ),
         centerTitle: true,
         backgroundColor: Colors.teal[600],
         foregroundColor: Colors.white,
-        // داخل AppBar في دالة _buildYieldScreen
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refreshData, // استخدام الدالة الموحدة
-            tooltip: 'تحديث البيانات',
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: 'تسجيل الخروج',
-          ),
-        ],
       ),
       body: SafeArea(
         child: Directionality(
           textDirection: TextDirection.rtl,
-          child: SingleChildScrollView(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.9,
-                  minHeight: MediaQuery.of(context).size.height,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // الصف الأول: مبيعات نقدية - مقبوضات
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: _buildReadOnlyField(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isSmallScreen = constraints.maxWidth < 600;
+
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight - 16,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // الصف الأول: مبيعات نقدية - مقبوضات
+                      _buildResponsiveRow(
+                        isSmallScreen: isSmallScreen,
+                        constraints: constraints,
+                        children: [
+                          _buildReadOnlyField(
                             'مبيعات نقدية',
                             _cashSalesController,
                             icon: Icons.shopping_cart,
+                            isSmallScreen: isSmallScreen,
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildReadOnlyField(
+                          _buildReadOnlyField(
                             'مقبوضات',
                             _receiptsController,
                             icon: Icons.account_balance_wallet,
+                            isSmallScreen: isSmallScreen,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
+                        ],
+                      ),
 
-                    // الصف الثاني: مشتريات نقدية - مدفوعات
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: _buildReadOnlyField(
+                      // الصف الثاني: مشتريات نقدية - مدفوعات
+                      _buildResponsiveRow(
+                        isSmallScreen: isSmallScreen,
+                        constraints: constraints,
+                        children: [
+                          _buildReadOnlyField(
                             'مشتريات نقدية',
                             _cashPurchasesController,
                             icon: Icons.shopping_bag,
+                            isSmallScreen: isSmallScreen,
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildReadOnlyField(
+                          _buildReadOnlyField(
                             'مدفوعات',
                             _paymentsController,
                             icon: Icons.payment,
+                            isSmallScreen: isSmallScreen,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
+                        ],
+                      ),
 
-                    // الصف الثالث: الغلة - المقبوض منه
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // حقل الناتج (الغلة) - تصميم مشابه لحقل الإدخال
-                        Expanded(
-                          child: _buildYieldResultField(
+                      // الصف الثالث: الغلة - المقبوض منه
+                      _buildResponsiveRow(
+                        isSmallScreen: isSmallScreen,
+                        constraints: constraints,
+                        children: [
+                          _buildYieldResultField(
                             'الغلة',
                             TextEditingController(
                                 text: _yield.toStringAsFixed(2)),
                             icon: Icons.calculate,
+                            isSmallScreen: isSmallScreen,
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildYieldInputField(
+                          _buildYieldInputField(
                             'المقبوض منه',
                             _collectedController,
                             icon: Icons.money,
+                            isSmallScreen: isSmallScreen,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-
-                    // الصف الرابع: زيادة أو نقص الغلة
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 24,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _status.contains('زيادة')
-                            ? Colors.green[50]
-                            : _status.contains('نقص')
-                                ? Colors.red[50]
-                                : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _status.contains('زيادة')
-                              ? Colors.green[200]!
-                              : _status.contains('نقص')
-                                  ? Colors.red[200]!
-                                  : Colors.grey[300]!,
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            _status.isNotEmpty ? _status : 'لا يوجد فرق',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: _status.contains('زيادة')
-                                  ? Colors.green[800]
-                                  : _status.contains('نقص')
-                                      ? Colors.red[800]
-                                      : Colors.grey[600],
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          if (_status.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: Text(
-                                _status.contains('زيادة')
-                                    ? 'المقبوض أكبر من الغلة الحقيقية'
-                                    : 'المقبوض أقل من الغلة الحقيقية',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
                         ],
                       ),
-                    ),
 
-                    // مسافة إضافية في الأسفل
-                    const SizedBox(height: 40),
-                  ],
+                      // الصف الرابع: زيادة أو نقص الغلة
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(isSmallScreen ? 20.0 : 30.0),
+                        decoration: BoxDecoration(
+                          color: _status.contains('زيادة')
+                              ? Colors.green[50]
+                              : _status.contains('نقص')
+                                  ? Colors.red[50]
+                                  : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _status.contains('زيادة')
+                                ? Colors.green[200]!
+                                : _status.contains('نقص')
+                                    ? Colors.red[200]!
+                                    : Colors.grey[300]!,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              _status.isNotEmpty ? _status : 'لا يوجد فرق',
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 20 : 28,
+                                fontWeight: FontWeight.bold,
+                                color: _status.contains('زيادة')
+                                    ? Colors.green[800]
+                                    : _status.contains('نقص')
+                                        ? Colors.red[800]
+                                        : Colors.grey[600],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            if (_status.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12.0),
+                                child: Text(
+                                  _status.contains('زيادة')
+                                      ? 'المقبوض أكبر من الغلة الحقيقية'
+                                      : 'المقبوض أقل من الغلة الحقيقية',
+                                  style: TextStyle(
+                                    fontSize: isSmallScreen ? 14 : 18,
+                                    color: Colors.grey,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildResponsiveRow({
+    required bool isSmallScreen,
+    required BoxConstraints constraints,
+    required List<Widget> children,
+  }) {
+    if (isSmallScreen) {
+      return Column(
+        children: [
+          SizedBox(
+            height: (constraints.maxHeight - 200) / 4,
+            child: children[0],
+          ),
+          SizedBox(
+            height: (constraints.maxHeight - 200) / 4,
+            child: children[1],
+          ),
+        ],
+      );
+    }
+    return SizedBox(
+      height: (constraints.maxHeight - 200) / 4,
+      child: Row(
+        children: [
+          Expanded(child: children[0]),
+          const SizedBox(width: 16),
+          Expanded(child: children[1]),
+        ],
       ),
     );
   }
@@ -632,20 +671,22 @@ class _YieldScreenState extends State<YieldScreen> {
     TextEditingController controller, {
     IconData? icon,
     String? infoText,
+    bool isSmallScreen = false,
   }) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 1,
-            offset: const Offset(0, 0.54),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           if (infoText != null)
             Padding(
@@ -653,54 +694,56 @@ class _YieldScreenState extends State<YieldScreen> {
               child: Text(
                 infoText,
                 style: const TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: Colors.grey,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-          TextField(
-            controller: controller,
-            readOnly: true,
-            textAlign: TextAlign.center,
-            keyboardType: TextInputType.number,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.teal[700],
-            ),
-            decoration: InputDecoration(
-              labelText: label,
-              labelStyle: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.bold,
+          Expanded(
+            child: TextField(
+              controller: controller,
+              readOnly: true,
+              textAlign: TextAlign.center,
+              keyboardType: TextInputType.number,
+              style: TextStyle(
+                fontSize: isSmallScreen ? 22 : 32,
+                fontWeight: FontWeight.w600,
+                color: Colors.teal[700],
               ),
-              prefixIcon: icon != null
-                  ? Icon(
-                      icon,
-                      size: 18,
-                      color: Colors.teal[600],
-                    )
-                  : null,
-              filled: true,
-              fillColor: Colors.grey[100],
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.teal[400]!, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 1,
+              decoration: InputDecoration(
+                labelText: label,
+                labelStyle: TextStyle(
+                  fontSize: isSmallScreen ? 14 : 18,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.bold,
+                ),
+                prefixIcon: icon != null
+                    ? Icon(
+                        icon,
+                        size: isSmallScreen ? 28 : 36,
+                        color: Colors.teal[600],
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.grey[100],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.teal[400]!, width: 2),
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: isSmallScreen ? 16 : 24,
+                  vertical: isSmallScreen ? 12 : 16,
+                ),
               ),
             ),
           ),
@@ -713,58 +756,61 @@ class _YieldScreenState extends State<YieldScreen> {
     String label,
     TextEditingController controller, {
     IconData? icon,
+    bool isSmallScreen = false,
   }) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 1,
-            offset: const Offset(0, 0.54),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: TextField(
-        controller: controller,
-        readOnly: true,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          color: Colors.teal[900],
-        ),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[700],
-            fontWeight: FontWeight.bold,
+      child: Expanded(
+        child: TextField(
+          controller: controller,
+          readOnly: true,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: isSmallScreen ? 22 : 32,
+            fontWeight: FontWeight.w800,
+            color: Colors.teal[900],
           ),
-          prefixIcon: icon != null
-              ? Icon(
-                  icon,
-                  size: 18,
-                  color: Colors.teal[700],
-                )
-              : null,
-          filled: true,
-          fillColor: Colors.teal[50],
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.teal[300]!),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.teal[300]!),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.teal[500]!, width: 2),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 1,
+          decoration: InputDecoration(
+            labelText: label,
+            labelStyle: TextStyle(
+              fontSize: isSmallScreen ? 14 : 18,
+              color: Colors.grey[700],
+              fontWeight: FontWeight.bold,
+            ),
+            prefixIcon: icon != null
+                ? Icon(
+                    icon,
+                    size: isSmallScreen ? 28 : 36,
+                    color: Colors.teal[700],
+                  )
+                : null,
+            filled: true,
+            fillColor: Colors.teal[50],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.teal[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.teal[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.teal[500]!, width: 2),
+            ),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: isSmallScreen ? 16 : 24,
+              vertical: isSmallScreen ? 12 : 16,
+            ),
           ),
         ),
       ),
@@ -775,87 +821,88 @@ class _YieldScreenState extends State<YieldScreen> {
     String label,
     TextEditingController controller, {
     IconData? icon,
+    bool isSmallScreen = false,
   }) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 1,
-            offset: const Offset(0, 0.54),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
-            controller: controller,
-            textAlign: TextAlign.center,
-            keyboardType: TextInputType.number,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
-            decoration: InputDecoration(
-              labelText: label,
-              labelStyle: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.bold,
+          Expanded(
+            child: TextField(
+              controller: controller,
+              textAlign: TextAlign.center,
+              keyboardType: TextInputType.number,
+              style: TextStyle(
+                fontSize: isSmallScreen ? 22 : 32,
+                fontWeight: FontWeight.w600,
+                color: Colors.black,
               ),
-              prefixIcon: icon != null
-                  ? Icon(
-                      icon,
-                      size: 18,
-                      color: Colors.teal[600],
-                    )
-                  : null,
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey[300]!),
+              decoration: InputDecoration(
+                labelText: label,
+                labelStyle: TextStyle(
+                  fontSize: isSmallScreen ? 14 : 18,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.bold,
+                ),
+                prefixIcon: icon != null
+                    ? Icon(
+                        icon,
+                        size: isSmallScreen ? 28 : 36,
+                        color: Colors.teal[600],
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.teal[400]!, width: 2),
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: isSmallScreen ? 16 : 24,
+                  vertical: isSmallScreen ? 12 : 16,
+                ),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.teal[400]!, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 1,
-              ),
-            ),
-            onChanged: (value) {
-              setState(() {
-                _calculateYield();
-              });
-
-              // حفظ القيمة فوراً عند تغييرها
-              if (_isLoggedIn && value.isNotEmpty) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _saveCollectedAmount();
+              onChanged: (value) {
+                setState(() {
+                  _calculateYield();
                 });
-              }
-            },
-            onTapOutside: (_) {
-              // فقدان التركيز - الحفظ
-              if (_isLoggedIn && _collectedController.text.isNotEmpty) {
-                _saveCollectedAmount();
-              }
-            },
-            onEditingComplete: () {
-              // عند الضغط على Enter
-              if (_isLoggedIn && _collectedController.text.isNotEmpty) {
-                _saveCollectedAmount();
-              }
-            },
+
+                if (_isLoggedIn && value.isNotEmpty) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _saveCollectedAmount();
+                  });
+                }
+              },
+              onTapOutside: (_) {
+                if (_isLoggedIn && _collectedController.text.isNotEmpty) {
+                  _saveCollectedAmount();
+                }
+              },
+              onEditingComplete: () {
+                if (_isLoggedIn && _collectedController.text.isNotEmpty) {
+                  _saveCollectedAmount();
+                }
+              },
+            ),
           ),
         ],
       ),

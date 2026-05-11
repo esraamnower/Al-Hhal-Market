@@ -89,10 +89,7 @@ class PdfActionMenu extends StatelessWidget {
   }
 
   Future<void> _printPdf() async {
-    try {
-      final pdfBytes = await _generatePdfBytes();
-      final fileName = _buildFileName();
-    } catch (e) {
+    try {} catch (e) {
       rethrow;
     }
   }

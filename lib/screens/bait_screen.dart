@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/bait_model.dart';
 import '../services/bait_service.dart';
+import '../widgets/exit_button.dart';
 
 class BaitScreen extends StatefulWidget {
   final String selectedDate;
@@ -59,10 +60,34 @@ class _BaitScreenState extends State<BaitScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('شاشة البايت ليوم ${widget.selectedDate}'),
+        automaticallyImplyLeading: false,
+        titleSpacing: 0,
+        toolbarHeight: kToolbarHeight + 20,
+        title: Row(
+          children: [
+            ExitButton(
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'شاشة البايت ليوم ${widget.selectedDate}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+            const SizedBox(width: 80),
+          ],
+        ),
+        centerTitle: true,
         backgroundColor: Colors.teal[700],
         foregroundColor: Colors.white,
-        centerTitle: true,
       ),
       body: Directionality(
         textDirection: TextDirection.rtl,

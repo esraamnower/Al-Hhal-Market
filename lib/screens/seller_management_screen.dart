@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../services/store_db_service.dart';
+import 'package:flutter/services.dart';
 
 // استيراد خدمات الفهارس
 import '../services/supplier_index_service.dart';
@@ -361,27 +362,37 @@ class _SellerManagementScreenState extends State<SellerManagementScreen> {
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  _currentStoreName,
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+        body: CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.escape): () {
+              Navigator.of(context).pop();
+            },
+          },
+          child: Focus(
+            autofocus: true,
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _currentStoreName,
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    _buildMainManagementButtons(),
+                    const SizedBox(height: 20),
+                    _buildIndexButtons(),
+                    const SizedBox(height: 40),
+                    _buildCurrentIndexList(),
+                  ],
                 ),
-                const SizedBox(height: 30),
-                _buildMainManagementButtons(),
-                const SizedBox(height: 20),
-                _buildIndexButtons(),
-                const SizedBox(height: 40),
-                _buildCurrentIndexList(),
-              ],
+              ),
             ),
           ),
         ),
@@ -428,7 +439,11 @@ class _SellerManagementScreenState extends State<SellerManagementScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 8.0),
         child: ElevatedButton.icon(
           onPressed: onPressed,
-          icon: Icon(icon, color: Colors.teal[700]),
+          icon: Icon(
+            icon,
+            color: Colors.teal[700],
+            size: 40,
+          ),
           label: Text(text, style: TextStyle(color: Colors.teal[700])),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.white,

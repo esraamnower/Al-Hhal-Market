@@ -5,17 +5,27 @@ import '../models/box_model.dart';
 import 'package:flutter/foundation.dart';
 
 class BoxStorageService {
+  // ✅ المسار الجذري الموحد: Documenti/alhalmarket
   Future<String> _getBasePath() async {
     Directory? directory;
     if (Platform.isAndroid) {
       directory = await getExternalStorageDirectory();
+    } else if (Platform.isWindows) {
+      directory = await getApplicationDocumentsDirectory();
     } else {
       directory = await getApplicationDocumentsDirectory();
     }
-    return directory!.path;
+
+    final rootPath = '${directory!.path}/alhalmarket';
+    final rootFolder = Directory(rootPath);
+    if (!await rootFolder.exists()) {
+      await rootFolder.create(recursive: true);
+    }
+
+    return rootPath;
   }
 
-  // *** تعديل: هذه الدالة الآن هي الأساس وتعتمد على التاريخ فقط ***
+  // اسم الملف يعتمد على التاريخ فقط
   String _createFileName(String date) {
     final dateParts = date.split('/');
     final formattedDate = dateParts.join('-');
@@ -25,6 +35,7 @@ class BoxStorageService {
   Future<bool> saveBoxDocument(BoxDocument document) async {
     try {
       final basePath = await _getBasePath();
+      // ✅ المسار الصحيح: alhalmarket/BoxJournals
       final folderPath = '$basePath/BoxJournals';
       final folder = Directory(folderPath);
       if (!await folder.exists()) await folder.create(recursive: true);
@@ -35,8 +46,15 @@ class BoxStorageService {
       final jsonString = jsonEncode(document.toJson());
       await file.writeAsString(jsonString);
 
+      if (kDebugMode) {
+        debugPrint('✅ تم حفظ يومية الصندوق: $filePath');
+      }
+
       return true;
     } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ خطأ في حفظ يومية الصندوق: $e');
+      }
       return false;
     }
   }
@@ -44,6 +62,7 @@ class BoxStorageService {
   Future<BoxDocument?> loadBoxDocumentForDate(String date) async {
     try {
       final basePath = await _getBasePath();
+      // ✅ المسار الصحيح: alhalmarket/BoxJournals
       final folderPath = '$basePath/BoxJournals';
       final fileName = _createFileName(date);
       final filePath = '$folderPath/$fileName';
@@ -64,21 +83,17 @@ class BoxStorageService {
     }
   }
 
-  // *** تمت إعادتها وتكييفها: تعمل الآن مع الهيكل الجديد ***
   Future<BoxDocument?> loadBoxDocument(String date, String recordNumber) async {
     // تتجاهل recordNumber لأن هناك ملف واحد فقط لكل يوم
     return await loadBoxDocumentForDate(date);
   }
 
-  // *** تمت إعادتها وتكييفها: تعمل الآن مع الهيكل الجديد ***
   Future<List<String>> getAvailableRecords(String date) async {
     try {
       final document = await loadBoxDocumentForDate(date);
       if (document != null) {
-        // إذا وجد الملف، نرجع رقم سجله في قائمة
         return [document.recordNumber];
       }
-      // إذا لم يوجد الملف، نرجع قائمة فارغة
       return [];
     } catch (e) {
       if (kDebugMode) {
@@ -91,6 +106,7 @@ class BoxStorageService {
   Future<List<Map<String, String>>> getAvailableDatesWithNumbers() async {
     try {
       final basePath = await _getBasePath();
+      // ✅ المسار الصحيح: alhalmarket/BoxJournals
       final folderPath = '$basePath/BoxJournals';
 
       final folder = Directory(folderPath);
@@ -104,7 +120,7 @@ class BoxStorageService {
       for (var file in files) {
         if (file is File &&
             file.path.endsWith('.json') &&
-            file.path.split('/').last.startsWith('box-')) {
+            file.path.split(Platform.pathSeparator).last.startsWith('box-')) {
           try {
             final jsonString = await file.readAsString();
             final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;
@@ -183,7 +199,7 @@ class BoxStorageService {
       for (var file in files) {
         if (file is File &&
             file.path.endsWith('.json') &&
-            file.path.split('/').last.startsWith('box-')) {
+            file.path.split(Platform.pathSeparator).last.startsWith('box-')) {
           try {
             final jsonString = await file.readAsString();
             final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;

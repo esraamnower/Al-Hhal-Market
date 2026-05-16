@@ -1835,7 +1835,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
   Future<void> _saveCurrentRecord({bool silent = false}) async {
     if (_isSaving) return;
-
+    if (!mounted) return;
     setState(() => _isSaving = true);
 
     // 1. تجميع السجلات الحالية من الواجهة
@@ -1944,7 +1944,7 @@ class _SalesScreenState extends State<SalesScreen> {
       setState(() => _hasUnsavedChanges = false);
       await _loadOrCreateRecord(); // إعادة تحميل لضمان التناسق
     }
-
+    if (!mounted) return;
     setState(() => _isSaving = false);
     if (!silent && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

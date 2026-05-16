@@ -1564,7 +1564,7 @@ class _BoxScreenState extends State<BoxScreen> {
   Future<void> _saveCurrentRecord(
       {bool silent = false, bool reloadAfterSave = true}) async {
     if (_isSaving) return;
-
+    if (!mounted) return;
     setState(() => _isSaving = true);
 
     // 1. تجميع السجلات الحالية من الواجهة
@@ -1679,7 +1679,7 @@ class _BoxScreenState extends State<BoxScreen> {
         await _loadOrCreateJournal();
       }
     }
-
+    if (!mounted) return;
     setState(() => _isSaving = false);
     if (!silent && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(

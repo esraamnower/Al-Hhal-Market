@@ -1634,7 +1634,7 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
 
   Future<void> _saveCurrentRecord({bool silent = false}) async {
     if (_isSaving) return;
-
+    if (!mounted) return;
     setState(() => _isSaving = true);
 
     // 1. تجميع السجلات الحالية من الواجهة التي تخص البائع الحالي فقط
@@ -1727,7 +1727,7 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
       setState(() => _hasUnsavedChanges = false);
       await _loadOrCreateJournal(); // تحديث الواجهة والـ sellerNames
     }
-
+    if (!mounted) return;
     setState(() => _isSaving = false);
     if (!silent && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(

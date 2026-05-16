@@ -1438,7 +1438,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
 
   Future<void> _saveCurrentRecord({bool silent = false}) async {
     if (_isSaving) return;
-
+    if (!mounted) return;
     setState(() => _isSaving = true);
 
     // 1. تجميع السجلات الحالية من واجهة المستخدم
@@ -1464,6 +1464,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
 
     // إذا لم تكن هناك بيانات فعلية، توقف عن الحفظ
     if (allReceiptsFromUI.isEmpty) {
+      if (!mounted) return;
       setState(() => _isSaving = false);
       if (!silent) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -1534,7 +1535,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       setState(() => _hasUnsavedChanges = false);
       await _loadOrCreateJournal(); // إعادة تحميل لضمان التناسق
     }
-
+    if (!mounted) return;
     setState(() => _isSaving = false);
 
     if (!silent && mounted) {

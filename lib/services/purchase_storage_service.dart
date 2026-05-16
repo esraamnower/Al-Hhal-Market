@@ -5,6 +5,7 @@ import '../models/purchase_model.dart';
 import 'package:flutter/foundation.dart';
 
 class PurchaseStorageService {
+  // نفس النمط تماماً مثل BoxStorageService الذي يعمل
   Future<String> _getBasePath() async {
     Directory? directory;
 
@@ -19,21 +20,19 @@ class PurchaseStorageService {
     return directory!.path;
   }
 
-  // اسم الملف الآن يحتوي فقط على التاريخ
   String _createFileName(String date) {
     final dateParts = date.split('/');
     final formattedDate = dateParts.join('-');
     return 'purchases-$formattedDate.json';
   }
 
-  // حفظ يومية المشتريات (ملف واحد لكل تاريخ)
   Future<bool> savePurchaseDocument(
     PurchaseDocument document, {
     String? journalNumber,
   }) async {
     try {
       final basePath = await _getBasePath();
-      final folderPath = '$basePath/PurchaseJournals';
+      final folderPath = '$basePath/alhalmarket/PurchaseJournals';
 
       final folder = Directory(folderPath);
       if (!await folder.exists()) {
@@ -43,8 +42,6 @@ class PurchaseStorageService {
       final fileName = _createFileName(document.date);
       final filePath = '$folderPath/$fileName';
       final file = File(filePath);
-
-      // --- بداية المنطق الجديد والمبسط (مستوحى من SalesStorageService) ---
 
       // 1. تحميل اليومية الحالية إن وجدت
       PurchaseDocument? existingDocument;
@@ -64,14 +61,13 @@ class PurchaseStorageService {
             .toList();
       }
 
-      // 3. دمج سجلات الباعة الآخرين مع السجلات الجديدة الكاملة للبائع الحالي
-      // document.purchases تحتوي فقط على سجلات البائع الحالي وهي كاملة البيانات من الواجهة
+      // 3. دمج سجلات الباعة الآخرين مع السجلات الجديدة للبائع الحالي
       List<Purchase> allPurchases = [
         ...otherSellersPurchases,
         ...document.purchases,
       ];
 
-      // 4. إعادة ترقيم كل شيء لضمان تسلسل صحيح
+      // 4. إعادة ترقيم لضمان تسلسل صحيح
       allPurchases.sort((a, b) => (int.tryParse(a.serialNumber) ?? 0)
           .compareTo(int.tryParse(b.serialNumber) ?? 0));
       for (int i = 0; i < allPurchases.length; i++) {
@@ -79,20 +75,17 @@ class PurchaseStorageService {
             allPurchases[i].copyWith(serialNumber: (i + 1).toString());
       }
 
-      // --- نهاية المنطق الجديد ---
-
       final String finalRecordNumber = journalNumber ??
           (existingDocument?.recordNumber ?? await getNextJournalNumber());
 
       final updatedDocument = PurchaseDocument(
         recordNumber: finalRecordNumber,
         date: document.date,
-        sellerName: 'Multiple Sellers', // يبقى الاسم العام للملف
+        sellerName: 'Multiple Sellers',
         storeName: document.storeName,
         dayName: document.dayName,
-        purchases: allPurchases, // استخدام القائمة المدمجة والمحدثة
-        totals:
-            _calculateTotals(allPurchases), // حساب المجاميع على القائمة الكاملة
+        purchases: allPurchases,
+        totals: _calculateTotals(allPurchases),
       );
 
       final updatedJsonString = jsonEncode(updatedDocument.toJson());
@@ -113,19 +106,16 @@ class PurchaseStorageService {
     }
   }
 
-  // تحميل يومية المشترات لتاريخ معين
   Future<PurchaseDocument?> loadPurchaseDocument(String date) async {
     try {
       final basePath = await _getBasePath();
-      final folderPath = '$basePath/PurchaseJournals';
+      final folderPath = '$basePath/alhalmarket/PurchaseJournals';
       final fileName = _createFileName(date);
       final filePath = '$folderPath/$fileName';
 
       final file = File(filePath);
       if (!await file.exists()) {
-        if (kDebugMode) {
-          debugPrint('⚠️ اليومية غير موجودة: $filePath');
-        }
+        if (kDebugMode) debugPrint('⚠️ اليومية غير موجودة: $filePath');
         return null;
       }
 
@@ -141,23 +131,18 @@ class PurchaseStorageService {
 
       return document;
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ خطأ في قراءة اليومية: $e');
-      }
+      if (kDebugMode) debugPrint('❌ خطأ في قراءة اليومية: $e');
       return null;
     }
   }
 
-  // الحصول على تواريخ اليوميات المتاحة
   Future<List<Map<String, String>>> getAvailableDatesWithNumbers() async {
     try {
       final basePath = await _getBasePath();
-      final folderPath = '$basePath/PurchaseJournals';
+      final folderPath = '$basePath/alhalmarket/PurchaseJournals';
 
       final folder = Directory(folderPath);
-      if (!await folder.exists()) {
-        return [];
-      }
+      if (!await folder.exists()) return [];
 
       final files = await folder.list().toList();
       final datesWithNumbers = <Map<String, String>>[];
@@ -169,7 +154,7 @@ class PurchaseStorageService {
             final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;
             final date = jsonMap['date']?.toString() ?? '';
             final journalNumber = jsonMap['recordNumber']?.toString() ?? '1';
-            final fileName = file.path.split('/').last;
+            final fileName = file.path.split(Platform.pathSeparator).last;
 
             if (fileName.startsWith('purchases-') && date.isNotEmpty) {
               datesWithNumbers.add({
@@ -179,14 +164,11 @@ class PurchaseStorageService {
               });
             }
           } catch (e) {
-            if (kDebugMode) {
-              debugPrint('❌ خطأ في قراءة ملف: ${file.path}, $e');
-            }
+            if (kDebugMode) debugPrint('❌ خطأ في قراءة ملف: ${file.path}, $e');
           }
         }
       }
 
-      // ترتيب حسب رقم اليومية (تصاعدي)
       datesWithNumbers.sort((a, b) {
         final numA = int.tryParse(a['journalNumber'] ?? '0') ?? 0;
         final numB = int.tryParse(b['journalNumber'] ?? '0') ?? 0;
@@ -195,37 +177,30 @@ class PurchaseStorageService {
 
       return datesWithNumbers;
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ خطأ في قراءة التواريخ: $e');
-      }
+      if (kDebugMode) debugPrint('❌ خطأ في قراءة التواريخ: $e');
       return [];
     }
   }
 
-  // حذف سجل معين من اليومية
   Future<bool> deletePurchaseRecord(
       String date, String recordSerial, String sellerName) async {
     try {
       final document = await loadPurchaseDocument(date);
       if (document == null) return false;
 
-      // البحث عن السجل
       final recordIndex = document.purchases.indexWhere(
           (p) => p.serialNumber == recordSerial && p.sellerName == sellerName);
 
       if (recordIndex == -1) return false;
 
-      // حذف السجل
       document.purchases.removeAt(recordIndex);
 
-      // تحديث الأرقام المسلسلة
       for (int i = 0; i < document.purchases.length; i++) {
         document.purchases[i] = document.purchases[i].copyWith(
           serialNumber: (i + 1).toString(),
         );
       }
 
-      // تحديث المجاميع
       final updatedDocument = PurchaseDocument(
         recordNumber: document.recordNumber,
         date: document.date,
@@ -236,17 +211,13 @@ class PurchaseStorageService {
         totals: _calculateTotals(document.purchases),
       );
 
-      // حفظ اليومية المحدثة
       return await savePurchaseDocument(updatedDocument);
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ خطأ في حذف السجل: $e');
-      }
+      if (kDebugMode) debugPrint('❌ خطأ في حذف السجل: $e');
       return false;
     }
   }
 
-  // حساب المجاميع من السجلات
   Map<String, String> _calculateTotals(List<Purchase> purchases) {
     double totalCount = 0;
     double totalBase = 0;
@@ -273,25 +244,19 @@ class PurchaseStorageService {
   Future<String?> getFilePath(String date) async {
     try {
       final basePath = await _getBasePath();
-      final folderPath = '$basePath/PurchaseJournals';
+      final folderPath = '$basePath/alhalmarket/PurchaseJournals';
       final fileName = _createFileName(date);
       final filePath = '$folderPath/$fileName';
 
       final file = File(filePath);
-      if (await file.exists()) {
-        return filePath;
-      }
-
+      if (await file.exists()) return filePath;
       return null;
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ خطأ في الحصول على مسار الملف: $e');
-      }
+      if (kDebugMode) debugPrint('❌ خطأ في الحصول على مسار الملف: $e');
       return null;
     }
   }
 
-  // إضافة هذه الدالة إلى PurchaseStorageService
   Future<double> getCashPurchasesForSeller(
       String date, String sellerName) async {
     try {
@@ -299,7 +264,6 @@ class PurchaseStorageService {
       if (document == null) return 0;
 
       double totalCashPurchases = 0;
-
       for (var purchase in document.purchases) {
         if (purchase.sellerName == sellerName &&
             purchase.cashOrDebt == 'نقدي' &&
@@ -307,12 +271,9 @@ class PurchaseStorageService {
           totalCashPurchases += double.tryParse(purchase.total) ?? 0;
         }
       }
-
       return totalCashPurchases;
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ خطأ في حساب المشتريات النقدية: $e');
-      }
+      if (kDebugMode) debugPrint('❌ خطأ في حساب المشتريات النقدية: $e');
       return 0;
     }
   }
@@ -320,7 +281,7 @@ class PurchaseStorageService {
   Future<String> getJournalNumberForDate(String date) async {
     try {
       final basePath = await _getBasePath();
-      final folderPath = '$basePath/PurchaseJournals';
+      final folderPath = '$basePath/alhalmarket/PurchaseJournals';
       final fileName = _createFileName(date);
       final filePath = '$folderPath/$fileName';
 
@@ -330,13 +291,9 @@ class PurchaseStorageService {
         final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;
         return jsonMap['recordNumber'] ?? '1';
       }
-
-      // إذا كان الملف غير موجود، نرجع الرقم 1
       return '1';
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ خطأ في الحصول على رقم اليومية: $e');
-      }
+      if (kDebugMode) debugPrint('❌ خطأ في الحصول على رقم اليومية: $e');
       return '1';
     }
   }
@@ -344,34 +301,32 @@ class PurchaseStorageService {
   Future<String> getNextJournalNumber() async {
     try {
       final basePath = await _getBasePath();
-      final folderPath = '$basePath/PurchaseJournals';
+      final folderPath = '$basePath/alhalmarket/PurchaseJournals';
       final folder = Directory(folderPath);
 
-      if (!await folder.exists()) {
-        return '1'; // أول يومية
-      }
+      if (!await folder.exists()) return '1';
 
       final files = await folder.list().toList();
       int maxJournalNumber = 0;
 
       for (var file in files) {
         if (file is File && file.path.endsWith('.json')) {
-          final jsonString = await file.readAsString();
-          final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;
-          final journalNumber =
-              int.tryParse(jsonMap['recordNumber'] ?? '0') ?? 0;
-
-          if (journalNumber > maxJournalNumber) {
-            maxJournalNumber = journalNumber;
-          }
+          try {
+            final jsonString = await file.readAsString();
+            final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;
+            final journalNumber =
+                int.tryParse(jsonMap['recordNumber'] ?? '0') ?? 0;
+            if (journalNumber > maxJournalNumber) {
+              maxJournalNumber = journalNumber;
+            }
+          } catch (e) {}
         }
       }
 
       return (maxJournalNumber + 1).toString();
     } catch (e) {
-      if (kDebugMode) {
+      if (kDebugMode)
         debugPrint('❌ خطأ في الحصول على الرقم التسلسلي التالي: $e');
-      }
       return '1';
     }
   }
@@ -379,7 +334,7 @@ class PurchaseStorageService {
   Future<List<String>> getAllAvailableDates() async {
     try {
       final basePath = await _getBasePath();
-      final folderPath = '$basePath/PurchaseJournals';
+      final folderPath = '$basePath/alhalmarket/PurchaseJournals';
       final folder = Directory(folderPath);
       if (!await folder.exists()) return [];
       final files = await folder.list().toList();
@@ -402,21 +357,6 @@ class PurchaseStorageService {
   }
 
   Future<PurchaseDocument?> loadDocumentForDate(String date) async {
-    try {
-      final basePath = await _getBasePath();
-      final folderPath = '$basePath/PurchaseJournals';
-      final fileName = _createFileName(date);
-      final filePath = '$folderPath/$fileName';
-
-      final file = File(filePath);
-      if (!await file.exists()) return null;
-
-      final jsonString = await file.readAsString();
-      final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;
-      return PurchaseDocument.fromJson(jsonMap);
-    } catch (e) {
-      if (kDebugMode) debugPrint('❌ خطأ في قراءة يومية المشتريات: $e');
-      return null;
-    }
+    return await loadPurchaseDocument(date);
   }
 }

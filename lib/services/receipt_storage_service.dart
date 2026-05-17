@@ -5,14 +5,24 @@ import '../models/receipt_model.dart';
 import 'package:flutter/foundation.dart';
 
 class ReceiptStorageService {
+  // ✅ المسار الجذري الموحد: Documenti/alhalmarket
   Future<String> _getBasePath() async {
     Directory? directory;
     if (Platform.isAndroid) {
       directory = await getExternalStorageDirectory();
+    } else if (Platform.isWindows) {
+      directory = await getApplicationDocumentsDirectory();
     } else {
       directory = await getApplicationDocumentsDirectory();
     }
-    return directory!.path;
+
+    final rootPath = '${directory!.path}/alhalmarket';
+    final rootFolder = Directory(rootPath);
+    if (!await rootFolder.exists()) {
+      await rootFolder.create(recursive: true);
+    }
+
+    return rootPath;
   }
 
   // *** تعديل: هذه الدالة الآن هي الأساس وتعتمد على التاريخ فقط ***
@@ -25,12 +35,10 @@ class ReceiptStorageService {
   Future<bool> saveReceiptDocument(ReceiptDocument document) async {
     try {
       final basePath = await _getBasePath();
+      // ✅ المسار الصحيح: alhalmarket/ReceiptJournals
       final folderPath = '$basePath/ReceiptJournals';
-
       final folder = Directory(folderPath);
-      if (!await folder.exists()) {
-        await folder.create(recursive: true);
-      }
+      if (!await folder.exists()) await folder.create(recursive: true);
 
       final fileName = _createFileName(document.date);
       final filePath = '$folderPath/$fileName';
@@ -99,6 +107,7 @@ class ReceiptStorageService {
   Future<ReceiptDocument?> loadReceiptDocumentForDate(String date) async {
     try {
       final basePath = await _getBasePath();
+      // ✅ المسار الصحيح: alhalmarket/ReceiptJournals
       final folderPath = '$basePath/ReceiptJournals';
       final fileName = _createFileName(date);
       final filePath = '$folderPath/$fileName';
@@ -145,9 +154,10 @@ class ReceiptStorageService {
   Future<List<Map<String, String>>> getAvailableDatesWithNumbers() async {
     try {
       final basePath = await _getBasePath();
-      final receiptsPath = '$basePath/ReceiptJournals';
+      // ✅ المسار الصحيح: alhalmarket/ReceiptJournals
+      final folderPath = '$basePath/ReceiptJournals';
 
-      final folder = Directory(receiptsPath);
+      final folder = Directory(folderPath);
       if (!await folder.exists()) {
         return [];
       }
@@ -158,7 +168,10 @@ class ReceiptStorageService {
       for (var file in files) {
         if (file is File &&
             file.path.endsWith('.json') &&
-            file.path.split('/').last.startsWith('receipt-')) {
+            file.path
+                .split(Platform.pathSeparator)
+                .last
+                .startsWith('receipt-')) {
           try {
             final jsonString = await file.readAsString();
             final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;
@@ -224,9 +237,9 @@ class ReceiptStorageService {
   Future<String> getNextJournalNumber() async {
     try {
       final basePath = await _getBasePath();
-      final receiptsPath = '$basePath/ReceiptJournals';
+      final folderPath = '$basePath/ReceiptJournals';
 
-      final folder = Directory(receiptsPath);
+      final folder = Directory(folderPath);
       if (!await folder.exists()) {
         return '1';
       }
@@ -237,7 +250,10 @@ class ReceiptStorageService {
       for (var file in files) {
         if (file is File &&
             file.path.endsWith('.json') &&
-            file.path.split('/').last.startsWith('receipt-')) {
+            file.path
+                .split(Platform.pathSeparator)
+                .last
+                .startsWith('receipt-')) {
           try {
             final jsonString = await file.readAsString();
             final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;

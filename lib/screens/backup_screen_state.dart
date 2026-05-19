@@ -39,15 +39,12 @@ class BackupScreen extends StatefulWidget {
 
 class _BackupScreenState extends State<BackupScreen> {
   static const _folders = [
+    'ReceiptJournals',
     'BoxJournals',
     'SalesJournals',
     'PurchaseJournals',
-    'PaymentJournals',
-    'AppData',
     'SupplierIndex',
     'CustomerIndex',
-    'MaterialIndex',
-    'PackagingIndex',
   ];
 
   bool _isBusy = false;
@@ -78,8 +75,8 @@ class _BackupScreenState extends State<BackupScreen> {
       } else {
         dir = await getApplicationDocumentsDirectory();
       }
-      // الرجوع إلى المجلد الرئيسي MarketLedger
-      return '${dir!.path}/MarketLedger';
+      // المجلد الجذري للمشروع
+      return '${dir!.path}/alhalmarket';
     } catch (_) {
       return null;
     }
@@ -92,13 +89,13 @@ class _BackupScreenState extends State<BackupScreen> {
     Directory dir;
 
     if (Platform.isAndroid) {
-      dir = Directory('/storage/emulated/0/Download/MarketLedger_Backups');
+      dir = Directory('/storage/emulated/0/Download/alhalmarket_Backups');
     } else if (Platform.isWindows) {
       final documents = await getApplicationDocumentsDirectory();
-      dir = Directory('${documents.path}/MarketLedger_Backups');
+      dir = Directory('${documents.path}/alhalmarket_Backups');
     } else {
       final documents = await getApplicationDocumentsDirectory();
-      dir = Directory('${documents.path}/MarketLedger_Backups');
+      dir = Directory('${documents.path}/alhalmarket_Backups');
     }
 
     if (!await dir.exists()) await dir.create(recursive: true);
@@ -127,13 +124,22 @@ class _BackupScreenState extends State<BackupScreen> {
       int count = 0;
 
       for (final folderName in _folders) {
-        final folder = Directory('$appPath/$folderName');
-        if (!await folder.exists()) continue;
+        final folder = Directory(
+            '$appPath${Platform.pathSeparator}$folderName'); // استخدام فاصل النظام
 
-        await for (final entity in folder.list(recursive: true)) {
+        // استخدام فاصل النظام للتوافق مع أندرويد وويندوز
+        final fallbackFolder = Directory('$appPath/$folderName');
+        final actualFolder = (await folder.exists())
+            ? folder
+            : (await fallbackFolder.exists() ? fallbackFolder : null);
+
+        if (actualFolder == null) continue;
+
+        await for (final entity in actualFolder.list(recursive: true)) {
           if (entity is File) {
-            // الحفاظ على هيكل المجلدات في ملف ZIP
-            final relativePath = entity.path.replaceFirst('$appPath/', '');
+            // 💡 التعديل الأهم: جلب المسار النسبي بشكل آمن دون الاعتماد على نوع الشرطة المائلة
+            final relativePath =
+                entity.path.substring(appPath.length + 1).replaceAll('\\', '/');
             encoder.addFile(entity, relativePath);
             count++;
           }
@@ -143,12 +149,9 @@ class _BackupScreenState extends State<BackupScreen> {
       encoder.close();
 
       if (count == 0) {
-        // حذف ملف ZIP الفارغ
         final emptyZip = File(zipPath);
-        if (await emptyZip.exists()) {
-          await emptyZip.delete();
-        }
-        throw Exception('لم يتم العثور على ملفات بيانات');
+        if (await emptyZip.exists()) await emptyZip.delete();
+        throw Exception('لم يتم العثور على ملفات بيانات لنسخها');
       }
 
       setState(() {
@@ -166,10 +169,7 @@ class _BackupScreenState extends State<BackupScreen> {
             text: 'نسخة احتياطية – سجل السوق $ts',
           );
         } catch (e) {
-          // Windows قد لا يدعم المشاركة بنفس الطريقة
-          if (kDebugMode) {
-            debugPrint('⚠️ مشاركة غير مدعومة على هذا النظام: $e');
-          }
+          if (kDebugMode) debugPrint('⚠️ مشاركة غير مدعومة: $e');
           _showInfoDialog(
             'تم النسخ الاحتياطي ✓',
             'تم حفظ النسخة في:\n${backupDir.path}\n\nاسم الملف: backup_$ts.zip',

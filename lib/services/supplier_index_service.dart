@@ -109,7 +109,7 @@ class SupplierIndexService implements EnhancedIndexService {
       directory = await getApplicationDocumentsDirectory();
     }
 
-    final folderPath = '${directory!.path}/SupplierIndex';
+    final folderPath = '${directory!.path}/alhalmarket/SupplierIndex';
     final folder = Directory(folderPath);
     if (!await folder.exists()) {
       await folder.create(recursive: true);

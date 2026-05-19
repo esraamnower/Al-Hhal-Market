@@ -71,7 +71,7 @@ class _AccountSummaryScreenState extends State<AccountSummaryScreen> {
       for (var date in salesAllDates) {
         final doc = await _salesStorageService.loadDocumentForDate(date);
         if (doc != null) {
-          sales += double.tryParse(doc.totals['totalPayments'] ?? '0') ?? 0;
+          sales += double.tryParse(doc.totals['totalGrand'] ?? '0') ?? 0;
           for (var sale in doc.sales) {
             if (sale.cashOrDebt == 'نقدي') {
               cashSalesTotal += double.tryParse(sale.total) ?? 0;
@@ -80,14 +80,14 @@ class _AccountSummaryScreenState extends State<AccountSummaryScreen> {
         }
       }
 
-      // ── 3. إجمالي المشتريات (نقدي + دين) ──
+// ── 3. إجمالي المشتريات (نقدي + دين) ──
       final purchasesAllDates =
           await _purchasesStorageService.getAllAvailableDates();
       double cashPurchasesTotal = 0;
       for (var date in purchasesAllDates) {
         final doc = await _purchasesStorageService.loadDocumentForDate(date);
         if (doc != null) {
-          purchases += double.tryParse(doc.totals['totalPayments'] ?? '0') ?? 0;
+          purchases += double.tryParse(doc.totals['totalGrand'] ?? '0') ?? 0;
           for (var purchase in doc.purchases) {
             if (purchase.cashOrDebt == 'نقدي') {
               cashPurchasesTotal += double.tryParse(purchase.total) ?? 0;
@@ -95,7 +95,6 @@ class _AccountSummaryScreenState extends State<AccountSummaryScreen> {
           }
         }
       }
-
       // ── 4. رصيد الصندوق الكلي = يدوي + مبيعات نقدية - مشتريات نقدية ──
       final double fullBoxReceived = boxManualReceived + cashSalesTotal;
       final double fullBoxPaid = boxManualPaid + cashPurchasesTotal;

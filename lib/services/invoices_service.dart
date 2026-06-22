@@ -217,7 +217,8 @@ class InvoicesService {
     if (salesDoc != null) {
       for (final sale in salesDoc.sales) {
         final matchSupplier = sale.affiliation.trim() == cleanSupplier;
-        final matchS = sale.sValue.trim() == cleanS;
+        // إذا كانت "س" فارغة، نتجاهل شرط "س" ونفلتر بالمورد فقط (السلوك القديم)
+        final matchS = cleanS.isEmpty || sale.sValue.trim() == cleanS;
         if (!matchSupplier || !matchS) continue;
 
         final material = sale.material.trim();
@@ -270,7 +271,8 @@ class InvoicesService {
     if (receiptDoc != null) {
       for (final receipt in receiptDoc.receipts) {
         final matchSupplier = receipt.affiliation.trim() == cleanSupplier;
-        final matchS = receipt.sValue.trim() == cleanS;
+        // إذا كانت "س" فارغة، نتجاهل شرط "س" ونفلتر بالمورد فقط (السلوك القديم)
+        final matchS = cleanS.isEmpty || receipt.sValue.trim() == cleanS;
         if (!matchSupplier || !matchS) continue;
 
         final material = receipt.material.trim();

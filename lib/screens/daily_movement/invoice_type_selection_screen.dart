@@ -116,6 +116,10 @@ class _InvoiceTypeSelectionScreenState extends State<InvoiceTypeSelectionScreen>
   }
 
   void _handleKeyEvent(RawKeyEvent event) {
+    // التحقق من أن هذه الشاشة هي الشاشة النشطة حالياً وليست مغطاة بصفحة أخرى
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) return;
+
     handleKeyEvent(event, _buttons.length);
     if (event is RawKeyDownEvent &&
         (event.logicalKey == LogicalKeyboardKey.enter ||

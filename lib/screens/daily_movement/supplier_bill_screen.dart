@@ -92,7 +92,7 @@ class _SupplierBillEntryDialogState extends State<SupplierBillEntryDialog> {
     });
   }
 
-  void _confirm() {
+  Future<void> _confirm() async {
     final supplier = _supplierController.text.trim();
     final sValue = _sController.text.trim();
 
@@ -103,15 +103,33 @@ class _SupplierBillEntryDialogState extends State<SupplierBillEntryDialog> {
       return;
     }
 
-    final parsedS = int.tryParse(sValue);
-    final normalizedS = parsedS != null ? parsedS.toString() : sValue;
+    final normalizedInput = normalizeArabic(supplier);
+    final allSuppliersList = await _supplierIndexService.getAllSuppliers();
+    
+    // التحقق من المطابقة اللينة للغة العربية للتسهيل على المستخدم
+    final matchedSupplierName = allSuppliersList.firstWhere(
+      (s) => normalizeArabic(s) == normalizedInput,
+      orElse: () => '',
+    );
+
+    if (matchedSupplierName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠️ هذا المورد غير موجود بالفهرس، يرجى اختيار مورد موجود بالفعل')),
+      );
+      return;
+    }
+
+    // معالجة قيمة س: إذا كانت فارغة تصبح "0" تلقائياً
+    final cleanS = sValue.isEmpty ? "0" : sValue;
+    final parsedS = int.tryParse(cleanS);
+    final normalizedS = parsedS != null ? parsedS.toString() : cleanS;
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => SupplierBillScreen(
           selectedDate: _formattedDate,
           storeName: widget.storeName,
-          supplierName: supplier,
+          supplierName: matchedSupplierName, // نمرر الاسم الرسمي الصحيح من الفهرس
           sValue: normalizedS,
           sellerName: widget.sellerName,
         ),

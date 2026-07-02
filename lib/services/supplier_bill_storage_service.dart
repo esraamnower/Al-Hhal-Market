@@ -3,6 +3,17 @@ import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 
+// توحيد النصوص العربية لتفادي فروقات المسافات، والهمزات، والتاء المربوطة، إلخ.
+String _normalizeArabic(String text) {
+  var n = text.trim().toLowerCase();
+  n = n.replaceAll(RegExp(r'[\u064B-\u065F]'), ''); // إزالة الحركات
+  n = n.replaceAll(RegExp(r'[أإآ]'), 'ا'); // توحيد الألف والهمزات
+  n = n.replaceAll('ة', 'ه'); // توحيد التاء المربوطة والهاء
+  n = n.replaceAll('ى', 'ي'); // توحيد الألف المقصورة والياء
+  n = n.replaceAll(' ', ''); // إزالة المسافات تماماً لضمان المطابقة اللينة مثل (ابو احمد) و (ابواحمد)
+  return n;
+}
+
 class SupplierBill {
   final String billNumber;
   final String supplierName;
@@ -97,8 +108,14 @@ class SupplierBillStorageService {
   String _createFileName(String date, String supplierName, String sValue) {
     final dateParts = date.split('/');
     final formattedDate = dateParts.join('-');
-    final safeSupplier = supplierName.trim().replaceAll(RegExp(r'[\\/]'), '_');
-    final safeS = sValue.trim().replaceAll(RegExp(r'[\\/]'), '_');
+    final normalizedSupplier = _normalizeArabic(supplierName);
+    final safeSupplier = normalizedSupplier.replaceAll(RegExp(r'[\\/]'), '_');
+    
+    // توحيد قيمة س برمجياً لتجنب اختلاف الأسماء بالأصفار البادئة (01 مقابل 1)
+    final parsedS = int.tryParse(sValue.trim());
+    final normalizedS = parsedS != null ? parsedS.toString() : sValue.trim();
+    final safeS = normalizedS.replaceAll(RegExp(r'[\\/]'), '_');
+    
     return 'bill-$formattedDate-${safeSupplier}-s$safeS.json';
   }
 

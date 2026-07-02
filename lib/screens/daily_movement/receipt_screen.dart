@@ -781,7 +781,10 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       onFieldChanged: _handleFieldChanged,
       isSField: isSField,
       inputFormatters: isSField
-          ? [FilteringTextInputFormatter.digitsOnly]
+          ? [
+              TableComponents.TwoDigitInputFormatter(),
+              FilteringTextInputFormatter.digitsOnly,
+            ]
           : (isNumericField
               ? [
                   TableComponents.PositiveDecimalInputFormatter(),
@@ -958,55 +961,62 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        titleSpacing: 0,
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                ExitButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                const SizedBox(width: 8),
-                Focus(
-                  focusNode: _addButtonFocusNode, // <-- تغيير
-                  child: SizedBox(
-                    width: 140,
-                    height: 80,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        _addNewRow();
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (rowFocusNodes.isNotEmpty) {
-                            final newRowIndex = rowFocusNodes.length - 1;
-                            FocusScope.of(context)
-                                .requestFocus(rowFocusNodes[newRowIndex][1]);
-                          }
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 14, 82, 184),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+    return WillPopScope(
+      onWillPop: () async {
+        if (_hasUnsavedChanges) {
+          await _saveCurrentRecord(silent: true);
+        }
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          titleSpacing: 0,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  ExitButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  const SizedBox(width: 8),
+                  Focus(
+                    focusNode: _addButtonFocusNode, // <-- تغيير
+                    child: SizedBox(
+                      width: 140,
+                      height: 80,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _addNewRow();
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (rowFocusNodes.isNotEmpty) {
+                              final newRowIndex = rowFocusNodes.length - 1;
+                              FocusScope.of(context)
+                                  .requestFocus(rowFocusNodes[newRowIndex][1]);
+                            }
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color.fromARGB(255, 14, 82, 184),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 3,
                         ),
-                        elevation: 3,
-                      ),
-                      child: const Text(
-                        'إضافة',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
+                        child: const Text(
+                          'إضافة',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
             if (_showFullScreenSuggestions &&
                 _getSuggestionsByType().isNotEmpty)
               Expanded(
@@ -1089,10 +1099,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
             onSelected: (selectedDate) async {
               if (selectedDate != widget.selectedDate) {
                 if (_hasUnsavedChanges) {
-                  final shouldSave = await _showUnsavedChangesDialog();
-                  if (shouldSave) {
-                    await _saveCurrentRecord(silent: true);
-                  }
+                  await _saveCurrentRecord(silent: true);
                 }
 
                 Navigator.pushReplacement(
@@ -1197,8 +1204,9 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
         child: _buildMainContent(),
       ),
       resizeToAvoidBottomInset: true,
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildMainContent() {
     return Stack(

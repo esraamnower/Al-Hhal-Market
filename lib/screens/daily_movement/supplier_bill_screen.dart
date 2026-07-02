@@ -103,13 +103,16 @@ class _SupplierBillEntryDialogState extends State<SupplierBillEntryDialog> {
       return;
     }
 
+    final parsedS = int.tryParse(sValue);
+    final normalizedS = parsedS != null ? parsedS.toString() : sValue;
+
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => SupplierBillScreen(
           selectedDate: _formattedDate,
           storeName: widget.storeName,
           supplierName: supplier,
-          sValue: sValue,
+          sValue: normalizedS,
           sellerName: widget.sellerName,
         ),
       ),
@@ -510,20 +513,6 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
     );
     _invoice = invoice;
 
-    // حساب قيمة العتالة من سجلات الاستلام لهذا المورد وحقل س:
-    final receiptDoc = await ReceiptStorageService()
-        .loadReceiptDocumentForDate(widget.selectedDate);
-    double totalPortage = 0.0;
-    if (receiptDoc != null) {
-      for (var receipt in receiptDoc.receipts) {
-        if (receipt.affiliation.trim() == widget.supplierName.trim() &&
-            (widget.sValue.trim().isEmpty || receipt.sValue.trim() == widget.sValue.trim())) {
-          totalPortage += double.tryParse(receipt.portage) ?? 0.0;
-        }
-      }
-    }
-    invoice.portageValue = totalPortage; // تعيين قيمة العتالة
-
     // تحميل الفاتورة المحفوظة إن وجدت
     final saved = await _billStorage.loadBill(
       widget.selectedDate,
@@ -536,15 +525,13 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
       invoice.maloomValue = saved.maloomValue;
       invoice.loadValue = saved.loadValue;
       invoice.paymentValue = saved.paymentValue;
-      invoice.portageValue =
-          saved.portageValue; // <-- العتالة من الفاتورة المحفوظة
+      invoice.portageValue = saved.portageValue; // <-- العتالة من الفاتورة المحفوظة
       _maloomPercentController.text = saved.maloomPercent.toStringAsFixed(2);
       _portageController.text = saved.portageValue.toStringAsFixed(2);
     } else {
       _maloomPercentController.text = '';
-      // إذا لم تكن محفوظة، نأخذ العتالة المحسوبة من الاستلام
-      invoice.portageValue = totalPortage;
-      _portageController.text = totalPortage.toStringAsFixed(2);
+      // إذا لم تكن محفوظة، نأخذ العتالة المحسوبة تلقائياً من دالة generateSupplierInvoice
+      _portageController.text = invoice.portageValue.toStringAsFixed(2);
     }
 
     return invoice;

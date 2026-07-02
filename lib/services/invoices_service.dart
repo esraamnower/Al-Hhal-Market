@@ -7,6 +7,19 @@ import 'receipt_storage_service.dart';
 import 'purchase_storage_service.dart';
 import '../models/supplier_invoice_model.dart';
 
+// توحيد النصوص العربية لتفادي فروقات المسافات، والهمزات، والتاء المربوطة، إلخ.
+String normalizeArabic(String text) {
+  var n = text.trim().toLowerCase();
+  n = n.replaceAll(RegExp(r'[\u064B-\u065F]'), ''); // إزالة الحركات
+  n = n.replaceAll(RegExp(r'[أإآ]'), 'ا'); // توحيد الألف والهمزات
+  n = n.replaceAll('ة', 'ه'); // توحيد التاء المربوطة والهاء
+  n = n.replaceAll('ى', 'i'); // توحيد الألف المقصورة والياء مؤقتاً أو كلاهما ياء
+  n = n.replaceAll('ي', 'ي');
+  n = n.replaceAll('ى', 'ي');
+  n = n.replaceAll(' ', ''); // إزالة المسافات تماماً لضمان المطابقة اللينة مثل (ابو احمد) و (ابواحمد)
+  return n;
+}
+
 // نموذج يحتوي على كل البيانات المطلوبة لشاشة المورد
 class SupplierReportData {
   final List<InvoiceItem> sales;
@@ -89,7 +102,7 @@ class InvoicesService {
 
     if (salesDocument != null) {
       for (var sale in salesDocument.sales) {
-        if (sale.affiliation.trim() == cleanSupplierName) {
+        if (normalizeArabic(sale.affiliation) == normalizeArabic(supplierName)) {
           supplierSales.add(InvoiceItem(
             serialNumber: sale.serialNumber,
             material: sale.material,
@@ -135,7 +148,7 @@ class InvoicesService {
 
     if (receiptDocument != null) {
       for (var receipt in receiptDocument.receipts) {
-        if (receipt.affiliation.trim() == cleanSupplierName) {
+        if (normalizeArabic(receipt.affiliation) == normalizeArabic(supplierName)) {
           supplierReceipts.add(receipt);
 
           // *** بداية التعديل: استخدام اسم المادة فقط كمفتاح للتجميع ***
@@ -201,8 +214,14 @@ class InvoicesService {
     String supplierName,
     String sValue,
   ) async {
-    final cleanSupplier = supplierName.trim();
+    final normalizedCleanSupplier = normalizeArabic(supplierName);
     final cleanS = sValue.trim();
+
+    String normalizeS(String s) {
+      final parsed = int.tryParse(s.trim());
+      return parsed != null ? parsed.toString() : s.trim();
+    }
+    final normalizedCleanS = normalizeS(cleanS);
 
     // مفتاح التجميع: المادة + السعر
     final Map<String, GroupedSaleLine> salesGroups = {};
@@ -216,9 +235,8 @@ class InvoicesService {
 
     if (salesDoc != null) {
       for (final sale in salesDoc.sales) {
-        final matchSupplier = sale.affiliation.trim() == cleanSupplier;
-        // إذا كانت "س" فارغة، نتجاهل شرط "س" ونفلتر بالمورد فقط (السلوك القديم)
-        final matchS = cleanS.isEmpty || sale.sValue.trim() == cleanS;
+        final matchSupplier = normalizeArabic(sale.affiliation) == normalizedCleanSupplier;
+        final matchS = normalizedCleanS.isEmpty || normalizeS(sale.sValue) == normalizedCleanS;
         if (!matchSupplier || !matchS) continue;
 
         final material = sale.material.trim();
@@ -260,19 +278,19 @@ class InvoicesService {
       }
     }
 
-    // ===== ب) الاستلام: فلترة بـ (المورد + س)، جمع الحمولة والدفعة، وعدّ المستلم =====
+    // ===== ب) الاستلام: فلترة بـ (المورد + س)، جمع الحمولة والدفعة والعتالة، وعدّ المستلم =====
     final Map<String, double> receiptCountByMaterial = {};
     double totalLoad = 0;
     double totalPayment = 0;
+    double totalPortage = 0;
 
     final ReceiptDocument? receiptDoc =
         await _receiptStorageService.loadReceiptDocumentForDate(date);
 
     if (receiptDoc != null) {
       for (final receipt in receiptDoc.receipts) {
-        final matchSupplier = receipt.affiliation.trim() == cleanSupplier;
-        // إذا كانت "س" فارغة، نتجاهل شرط "س" ونفلتر بالمورد فقط (السلوك القديم)
-        final matchS = cleanS.isEmpty || receipt.sValue.trim() == cleanS;
+        final matchSupplier = normalizeArabic(receipt.affiliation) == normalizedCleanSupplier;
+        final matchS = normalizedCleanS.isEmpty || normalizeS(receipt.sValue) == normalizedCleanS;
         if (!matchSupplier || !matchS) continue;
 
         final material = receipt.material.trim();
@@ -286,6 +304,7 @@ class InvoicesService {
 
         totalLoad += double.tryParse(receipt.load) ?? 0;
         totalPayment += double.tryParse(receipt.payment) ?? 0;
+        totalPortage += double.tryParse(receipt.portage) ?? 0;
       }
     }
 
@@ -318,7 +337,7 @@ class InvoicesService {
       });
 
     return SupplierInvoice(
-      supplierName: cleanSupplier,
+      supplierName: supplierName.trim(), // إعادة الاسم بالشكل الطبيعي مع الحفاظ على التنسيق الأصلي للمورد
       sValue: cleanS,
       date: date,
       groupedSales: groupedList,
@@ -326,6 +345,7 @@ class InvoicesService {
       totalSalesValue: totalSalesValue,
       loadValue: totalLoad, // قابلة للتعديل في الواجهة
       paymentValue: totalPayment, // قابلة للتعديل في الواجهة
+      portageValue: totalPortage, // العتالة المجمعة من الاستلام
     );
   }
 

@@ -1127,25 +1127,7 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
               padding: const EdgeInsets.all(8.0),
               child: Column(
                 children: [
-                  // شريط حالة الفاتورة (محفوظة / غير محفوظة)
-                  if (_savedBill != null)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(10),
-                      margin: const EdgeInsets.only(bottom: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        border: Border.all(color: Colors.green.shade300),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'فاتورة محفوظة رقم ${_savedBill!.billNumber} — الحقول مقفلة',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: Colors.green.shade900,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ),
+
 
                   // --- جدول المبيعات المجمّع (بدون عنوان "المبيعات المجمّعة") ---
                   if (hasSales) ...[

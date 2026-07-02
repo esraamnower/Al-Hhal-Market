@@ -691,9 +691,9 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
     }
   }
 
-  // التاريخ بصيغة:  التاريخ  /  /  س  /  /
+  // التاريخ بصيغة:  التاريخ  •  الشحنة (س)
   String get _headerLine =>
-      '${widget.selectedDate}  /  /  س  /  ${widget.sValue}  /';
+      'التاريخ: ${widget.selectedDate}   •   الشحنة (س): ${widget.sValue}';
 
   Future<Uint8List> _generatePdfBytes(SupplierInvoice invoice) async {
     final pdf = pw.Document();

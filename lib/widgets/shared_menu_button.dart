@@ -56,10 +56,12 @@ class _SharedMenuButtonState extends State<SharedMenuButton>
   @override
   void didUpdateWidget(SharedMenuButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isFocused && !_scaleController.isAnimating) {
-      _scaleController.forward();
-    } else if (!widget.isFocused && _scaleController.isAnimating) {
-      _scaleController.reverse();
+    if (widget.isFocused != oldWidget.isFocused) {
+      if (widget.isFocused) {
+        _scaleController.forward();
+      } else {
+        _scaleController.reverse();
+      }
     }
   }
 

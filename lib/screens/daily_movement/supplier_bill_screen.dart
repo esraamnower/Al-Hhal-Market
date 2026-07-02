@@ -9,6 +9,7 @@ import '../../models/supplier_invoice_model.dart';
 import '../../widgets/pdf_action_menu.dart';
 import '../../widgets/exit_button.dart';
 import '../../services/receipt_storage_service.dart';
+import '../../services/box_storage_service.dart'; // استيراد خدمة الصندوق
 
 /// ============================================================================
 /// حوار إدخال شرط فاتورة المورد (اسم المورد + س + التاريخ)
@@ -447,8 +448,10 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
   late Future<SupplierInvoice> _invoiceFuture;
   SupplierInvoice? _invoice;
 
-  // نسبة المعلوم فقط قابلة للكتابة
+  // نسبة المعلوم وقيمة العتالة قابلة للكتابة
   final TextEditingController _maloomPercentController =
+      TextEditingController();
+  final TextEditingController _portageController =
       TextEditingController();
 
   // معلومات الفاتورة المحفوظة (إن وُجدت)
@@ -464,7 +467,39 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
   @override
   void dispose() {
     _maloomPercentController.dispose();
+    _portageController.dispose();
     super.dispose();
+  }
+
+  DateTime _parseDate(String dateString) {
+    try {
+      final parts = dateString.split('/');
+      if (parts.length == 3) {
+        final year = int.parse(parts[0]);
+        final month = int.parse(parts[1]);
+        final day = int.parse(parts[2]);
+        return DateTime(year, month, day);
+      }
+    } catch (_) {}
+    return DateTime.now();
+  }
+
+  String _getArabicDayName(DateTime date) {
+    final days = [
+      'الإثنين',
+      'الثلاثاء',
+      'الأربعاء',
+      'الخميس',
+      'الجمعة',
+      'السبت',
+      'الأحد'
+    ];
+    return days[date.weekday - 1];
+  }
+
+  String _extractDayName(String dateString) {
+    final date = _parseDate(dateString);
+    return _getArabicDayName(date);
   }
 
   Future<SupplierInvoice> _loadInvoice() async {
@@ -475,13 +510,14 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
     );
     _invoice = invoice;
 
-    // حساب قيمة العتالة من سجلات الاستلام لهذا المورد:
+    // حساب قيمة العتالة من سجلات الاستلام لهذا المورد وحقل س:
     final receiptDoc = await ReceiptStorageService()
         .loadReceiptDocumentForDate(widget.selectedDate);
     double totalPortage = 0.0;
     if (receiptDoc != null) {
       for (var receipt in receiptDoc.receipts) {
-        if (receipt.affiliation.trim() == widget.supplierName.trim()) {
+        if (receipt.affiliation.trim() == widget.supplierName.trim() &&
+            (widget.sValue.trim().isEmpty || receipt.sValue.trim() == widget.sValue.trim())) {
           totalPortage += double.tryParse(receipt.portage) ?? 0.0;
         }
       }
@@ -503,10 +539,12 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
       invoice.portageValue =
           saved.portageValue; // <-- العتالة من الفاتورة المحفوظة
       _maloomPercentController.text = saved.maloomPercent.toStringAsFixed(2);
+      _portageController.text = saved.portageValue.toStringAsFixed(2);
     } else {
       _maloomPercentController.text = '';
       // إذا لم تكن محفوظة، نأخذ العتالة المحسوبة من الاستلام
       invoice.portageValue = totalPortage;
+      _portageController.text = totalPortage.toStringAsFixed(2);
     }
 
     return invoice;
@@ -520,6 +558,15 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
       invoice.maloomPercent = percent;
       invoice.maloomValue =
           _invoicesService.calculateMaloom(invoice.totalSalesValue, percent);
+    });
+  }
+
+  void _recalculatePortage() {
+    final invoice = _invoice;
+    if (invoice == null || _savedBill != null) return;
+    final portage = double.tryParse(_portageController.text) ?? 0;
+    setState(() {
+      invoice.portageValue = portage;
     });
   }
 
@@ -555,6 +602,19 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
       return;
     }
 
+    // تسجيل العتالة في الصندوق إذا كانت أكبر من 0
+    if (invoice.portageValue > 0) {
+      await BoxStorageService().addPortageEntry(
+        date: widget.selectedDate,
+        supplierName: widget.supplierName,
+        portageValue: invoice.portageValue,
+        sellerName: widget.sellerName,
+        storeName: widget.storeName,
+        dayName: _extractDayName(widget.selectedDate),
+        notes: 'عتالة فاتورة المورد ${widget.supplierName} رقم الفاتورة $billNumber',
+      );
+    }
+
     final saved = await _billStorage.loadBill(
       widget.selectedDate,
       widget.supplierName,
@@ -564,7 +624,7 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('✅ تم حفظ الفاتورة رقم $billNumber'),
+        content: Text('✅ تم حفظ الفاتورة رقم $billNumber وتم تسجيل العتالة بالصندوق'),
         backgroundColor: Colors.green[700],
       ),
     );
@@ -596,6 +656,8 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
 
     if (confirmed != true) return;
 
+    final String? billNumToDelete = _savedBill?.billNumber;
+
     final success = await _billStorage.deleteBill(
       widget.selectedDate,
       widget.supplierName,
@@ -604,18 +666,31 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
 
     if (!mounted) return;
     if (success) {
+      // حذف حركة العتالة المرتبطة من الصندوق
+      if (billNumToDelete != null) {
+        await BoxStorageService().deletePortageEntry(
+          date: widget.selectedDate,
+          notesPattern: 'رقم الفاتورة $billNumToDelete',
+        );
+      }
+
       setState(() {
         _savedBill = null;
         _maloomPercentController.text = '';
-        final invoice = _invoice;
-        if (invoice != null) {
-          invoice.maloomPercent = 0;
-          invoice.maloomValue = 0;
-        }
+        _portageController.text = '';
       });
+
+      // إعادة تحميل الفاتورة الافتراضية
+      final freshInvoice = await _loadInvoice();
+      if (mounted) {
+        setState(() {
+          _invoice = freshInvoice;
+        });
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('✅ تم حذف الفاتورة'),
+          content: const Text('✅ تم حذف الفاتورة وإلغاء العتالة من الصندوق'),
           backgroundColor: Colors.green[700],
         ),
       );
@@ -1053,6 +1128,49 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
     );
   }
 
+  // حقل العتالة القابل للكتابة بنفس التنسيق الأفقي
+  Widget _buildPortageField() {
+    final locked = _savedBill != null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        children: [
+          const Expanded(
+            flex: 2,
+            child: Text('العتالة',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ),
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: _portageController,
+              readOnly: locked,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.rtl,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+              ],
+              onChanged: (_) => _recalculatePortage(),
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: locked ? Colors.grey.shade100 : Colors.white,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: Colors.grey.shade400),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1320,7 +1438,7 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
                         const Divider(),
                         _buildReadOnlyField('الدفعة', invoice.paymentValue),
                         _buildReadOnlyField('الحمولة', invoice.loadValue),
-                        _buildReadOnlyField('العتالة', invoice.portageValue),
+                        _buildPortageField(),
                         const Divider(),
                         _buildReadOnlyField(
                             'إجمالي المصاريف', invoice.totalExpenses,
@@ -1437,7 +1555,9 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
           _buildExpenseItem(
             label: 'العتالة',
             value: invoice.portageValue.toStringAsFixed(2),
-            isEditable: false,
+            isEditable: _savedBill == null,
+            controller: _portageController,
+            onChanged: (_) => _recalculatePortage(),
           ),
         ],
       ),

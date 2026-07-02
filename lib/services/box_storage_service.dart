@@ -229,6 +229,7 @@ class BoxStorageService {
     required String sellerName,
     String storeName = '',
     String dayName = '',
+    String? notes,
   }) async {
     try {
       // 1. تحميل يومية الصندوق الحالية (إن وُجدت)
@@ -247,7 +248,7 @@ class BoxStorageService {
         paid: portageValue.toStringAsFixed(2), // العتالة في المدفوع
         accountType: 'عتالة',
         accountName: supplierName,
-        notes: 'عتالة فاتورة المورد $supplierName',
+        notes: notes ?? 'عتالة فاتورة المورد $supplierName',
         sellerName: sellerName,
       );
 
@@ -283,6 +284,61 @@ class BoxStorageService {
     } catch (e) {
       if (kDebugMode) {
         debugPrint('❌ خطأ في إضافة سطر العتالة للصندوق: $e');
+      }
+      return false;
+    }
+  }
+
+  /// حذف سطر العتالة آلياً من يومية الصندوق لنفس التاريخ
+  Future<bool> deletePortageEntry({
+    required String date,
+    required String notesPattern,
+  }) async {
+    try {
+      BoxDocument? existing = await loadBoxDocumentForDate(date);
+      if (existing == null) return false;
+
+      final List<BoxTransaction> transactions = List.from(existing.transactions);
+      final initialLength = transactions.length;
+
+      // إزالة السطور التي تحتوي على النمط المحدد
+      transactions.removeWhere((t) => t.notes.contains(notesPattern));
+
+      if (transactions.length == initialLength) {
+        return false; // لم يتم العثور على أي سطر مطابق
+      }
+
+      // إعادة ترقيم السطور المتسلسلة لضمان التناسق
+      for (int i = 0; i < transactions.length; i++) {
+        transactions[i] = transactions[i].copyWith(serialNumber: (i + 1).toString());
+      }
+
+      // إعادة حساب المجاميع
+      double totalReceived = 0;
+      double totalPaid = 0;
+      for (final t in transactions) {
+        totalReceived += double.tryParse(t.received) ?? 0;
+        totalPaid += double.tryParse(t.paid) ?? 0;
+      }
+
+      final updatedDoc = BoxDocument(
+        recordNumber: existing.recordNumber,
+        date: date,
+        sellerName: existing.sellerName,
+        storeName: existing.storeName,
+        dayName: existing.dayName,
+        transactions: transactions,
+        totals: {
+          'totalReceived': totalReceived.toStringAsFixed(2),
+          'totalPaid': totalPaid.toStringAsFixed(2),
+          'balance': (totalReceived - totalPaid).toStringAsFixed(2),
+        },
+      );
+
+      return await saveBoxDocument(updatedDoc);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ خطأ في حذف سطر العتالة من الصندوق: $e');
       }
       return false;
     }

@@ -64,12 +64,19 @@ class PdfActionMenu extends StatelessWidget {
       final fileName = _buildFileName();
       final file = File("${output.path}/$fileName");
       await file.writeAsBytes(pdfBytes);
-      await Share.shareXFiles([XFile(file.path)],
-          text: type == 'supplier'
-              ? 'مشتريات المورد $supplierOrCustomerName - $filterDesc'
-              : type == 'customer'
-                  ? 'فاتورة الزبون $supplierOrCustomerName - $filterDesc'
-                  : 'تقرير $type - $filterDesc');
+
+      if (Platform.isWindows) {
+        // على ويندوز: افتحي مستكشف الملفات وحددي الملف بدل قائمة مشاركة غير فعالة
+        await Process.run('explorer.exe', ['/select,', file.path]);
+      } else {
+        // على أندرويد وباقي المنصات: نفس سلوك المشاركة الحالي بدون أي تغيير
+        await Share.shareXFiles([XFile(file.path)],
+            text: type == 'supplier'
+                ? 'مشتريات المورد $supplierOrCustomerName - $filterDesc'
+                : type == 'customer'
+                    ? 'فاتورة الزبون $supplierOrCustomerName - $filterDesc'
+                    : 'تقرير $type - $filterDesc');
+      }
     } catch (e) {
       rethrow;
     }
@@ -106,7 +113,11 @@ class PdfActionMenu extends StatelessWidget {
               await _sharePdf();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تمت المشاركة بنجاح')),
+                  SnackBar(
+                    content: Text(Platform.isWindows
+                        ? 'تم فتح الملف في مستكشف الملفات'
+                        : 'تمت المشاركة بنجاح'),
+                  ),
                 );
               }
               break;

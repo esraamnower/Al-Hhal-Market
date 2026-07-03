@@ -27,6 +27,8 @@ class _InvoiceTypeSelectionScreenState extends State<InvoiceTypeSelectionScreen>
     with MenuNavigationMixin {
   // 4 أزرار في شبكة 2×2
   late final List<Map<String, dynamic>> _buttons;
+  bool _isNavigating = false;
+  final FocusNode _screenFocusNode = FocusNode();
 
   @override
   int get columns => 2;
@@ -40,6 +42,7 @@ class _InvoiceTypeSelectionScreenState extends State<InvoiceTypeSelectionScreen>
 
   @override
   void dispose() {
+    _screenFocusNode.dispose();
     disposeMenuNavigation();
     super.dispose();
   }
@@ -120,21 +123,26 @@ class _InvoiceTypeSelectionScreenState extends State<InvoiceTypeSelectionScreen>
     final route = ModalRoute.of(context);
     if (route == null || !route.isCurrent) return;
 
+    if (_isNavigating) return;
+
     handleKeyEvent(event, _buttons.length);
     if (event is RawKeyDownEvent &&
         (event.logicalKey == LogicalKeyboardKey.enter ||
             event.logicalKey == LogicalKeyboardKey.space)) {
+      _isNavigating = true;
       executeButtonAt(focusedIndex, _buttons);
-    } else if (event is RawKeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.escape) {
-      Navigator.of(context).pop();
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          _isNavigating = false;
+        }
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return RawKeyboardListener(
-      focusNode: FocusNode(),
+      focusNode: _screenFocusNode,
       autofocus: true,
       onKey: _handleKeyEvent,
       child: Scaffold(
@@ -228,12 +236,19 @@ class _InvoiceTypeSelectionScreenState extends State<InvoiceTypeSelectionScreen>
       isFocused: isFocused,
       isEnabled: true,
       onTap: () {
+        if (_isNavigating) return;
+        _isNavigating = true;
         setState(() {
           focusedIndex = index;
         });
         if (button['onTap'] != null) {
           (button['onTap'] as VoidCallback)();
         }
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            _isNavigating = false;
+          }
+        });
       },
     );
   }

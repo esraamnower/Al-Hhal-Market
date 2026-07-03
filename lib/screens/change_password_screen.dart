@@ -226,15 +226,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     final isLandscape = MediaQuery.of(context).size.width > 600;
 
     return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): () {
-          if (_currentScreen == 0) {
-            Navigator.of(context).pop();
-          } else {
-            _resetToSelection();
-          }
-        },
-      },
+      bindings: {},
       child: Focus(
         autofocus: true,
         child: Container(

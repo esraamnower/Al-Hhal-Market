@@ -248,15 +248,16 @@ class _DailyMovementScreenState extends State<DailyMovementScreen>
   // ============== نظام التحكم بلوحة المفاتيح ==============
 
   void _handleKeyEvent(RawKeyEvent event) {
+    // التحقق من أن هذه الشاشة هي الشاشة النشطة حالياً وليست مغطاة بصفحة أخرى
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) return;
+
     handleKeyEvent(event, _buttons.length);
     // تنفيذ الزر الحالي عند الضغط على Enter
     if (event is RawKeyDownEvent &&
         (event.logicalKey == LogicalKeyboardKey.enter ||
             event.logicalKey == LogicalKeyboardKey.space)) {
       executeButtonAt(focusedIndex, _buttons);
-    } else if (event is RawKeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.escape) {
-      _handleBackButton();
     }
   }
 

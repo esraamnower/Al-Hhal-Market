@@ -41,6 +41,7 @@ class _SupplierBillEntryDialogState extends State<SupplierBillEntryDialog> {
 
   final FocusNode _supplierFocus = FocusNode();
   final FocusNode _sFocus = FocusNode();
+  final FocusNode _keyboardFocusNode = FocusNode();
 
   late DateTime _selectedDate;
 
@@ -56,6 +57,7 @@ class _SupplierBillEntryDialogState extends State<SupplierBillEntryDialog> {
     _sController.dispose();
     _supplierFocus.dispose();
     _sFocus.dispose();
+    _keyboardFocusNode.dispose();
     super.dispose();
   }
 
@@ -224,193 +226,215 @@ class _SupplierBillEntryDialogState extends State<SupplierBillEntryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: Colors.black.withOpacity(0.4),
-        body: Center(
-          child: SingleChildScrollView(
-            child: Container(
-              width: 360,
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'فاتورة المورد',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.teal,
+    return RawKeyboardListener(
+      focusNode: _keyboardFocusNode,
+      autofocus: true,
+      onKey: (RawKeyEvent event) {},
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          backgroundColor: Colors.grey.shade50,
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            titleSpacing: 0,
+            toolbarHeight: kToolbarHeight + 20,
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const SizedBox(width: 140),
+                const Text(
+                  'فاتورة المورد - تحديد البيانات',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                ExitButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            centerTitle: true,
+            backgroundColor: Colors.teal[700],
+            foregroundColor: Colors.white,
+          ),
+          body: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 450),
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // --- حقل اسم المورد مع الإكمال التلقائي ---
-                  const Text('اسم المورد',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 6),
-                  RawAutocomplete<String>(
-                    textEditingController: _supplierController,
-                    focusNode: _supplierFocus,
-                    optionsBuilder: (TextEditingValue value) async {
-                      if (value.text.trim().isEmpty) {
-                        return const Iterable<String>.empty();
-                      }
-                      return await _supplierIndexService
-                          .getEnhancedSuggestions(value.text.trim());
-                    },
-                    fieldViewBuilder:
-                        (context, controller, focusNode, onFieldSubmitted) {
-                      return TextField(
-                        controller: controller,
-                        focusNode: focusNode,
-                        textInputAction: TextInputAction.next,
-                        textDirection: TextDirection.rtl,
-                        onSubmitted: (_) {
-                          // enter ينقل للحقل التالي (س)
-                          onFieldSubmitted();
-                          FocusScope.of(context).requestFocus(_sFocus);
-                        },
-                        decoration: _fieldDecoration('اكتب اسم المورد أو رقمه'),
-                      );
-                    },
-                    optionsViewBuilder: (context, onSelected, options) {
-                      return Align(
-                        alignment: Alignment.topRight,
-                        child: Material(
-                          elevation: 4,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                                maxHeight: 180, maxWidth: 320),
-                            child: ListView.builder(
-                              padding: EdgeInsets.zero,
-                              shrinkWrap: true,
-                              itemCount: options.length,
-                              itemBuilder: (context, index) {
-                                final option = options.elementAt(index);
-                                return InkWell(
-                                  onTap: () {
-                                    onSelected(option);
-                                    FocusScope.of(context)
-                                        .requestFocus(_sFocus);
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 10),
-                                    alignment: Alignment.centerRight,
-                                    child: Text(option,
-                                        textDirection: TextDirection.rtl),
-                                  ),
-                                );
-                              },
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // --- حقل اسم المورد مع الإكمال التلقائي ---
+                    const Text('اسم المورد',
+                        style:
+                            TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 6),
+                    RawAutocomplete<String>(
+                      textEditingController: _supplierController,
+                      focusNode: _supplierFocus,
+                      optionsBuilder: (TextEditingValue value) async {
+                        if (value.text.trim().isEmpty) {
+                          return const Iterable<String>.empty();
+                        }
+                        return await _supplierIndexService
+                            .getEnhancedSuggestions(value.text.trim());
+                      },
+                      fieldViewBuilder:
+                          (context, controller, focusNode, onFieldSubmitted) {
+                        return TextField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          textInputAction: TextInputAction.next,
+                          textDirection: TextDirection.rtl,
+                          onSubmitted: (_) {
+                            // enter ينقل للحقل التالي (س)
+                            onFieldSubmitted();
+                            FocusScope.of(context).requestFocus(_sFocus);
+                          },
+                          decoration: _fieldDecoration('اكتب اسم المورد أو رقمه'),
+                        );
+                      },
+                      optionsViewBuilder: (context, onSelected, options) {
+                        return Align(
+                          alignment: Alignment.topRight,
+                          child: Material(
+                            elevation: 4,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                  maxHeight: 180, maxWidth: 320),
+                              child: ListView.builder(
+                                padding: EdgeInsets.zero,
+                                shrinkWrap: true,
+                                itemCount: options.length,
+                                itemBuilder: (context, index) {
+                                  final option = options.elementAt(index);
+                                  return InkWell(
+                                    onTap: () {
+                                      onSelected(option);
+                                      FocusScope.of(context)
+                                          .requestFocus(_sFocus);
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 10),
+                                      alignment: Alignment.centerRight,
+                                      child: Text(option,
+                                          textDirection: TextDirection.rtl),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // --- حقل س (أرقام وفواصل فقط) ---
-                  const Text('س',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _sController,
-                    focusNode: _sFocus,
-                    textDirection: TextDirection.rtl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      // أرقام وفواصل رقمية فقط
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                    ],
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => _confirm(),
-                    decoration: _fieldDecoration('قيمة س'),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // --- التاريخ بأزرار التقليب ---
-                  const Text('التاريخ',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
+                        );
+                      },
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    const SizedBox(height: 16),
+
+                    // --- حقل س (أرقام وفواصل فقط) ---
+                    const Text('س',
+                        style:
+                            TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _sController,
+                      focusNode: _sFocus,
+                      textDirection: TextDirection.rtl,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        // أرقام وفواصل رقمية فقط
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                      ],
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _confirm(),
+                      decoration: _fieldDecoration('قيمة س'),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // --- التاريخ بأزرار التقليب ---
+                    const Text('التاريخ',
+                        style:
+                            TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildCompactPicker(
+                            'اليوم',
+                            _selectedDate.day,
+                            () => _updateDate(day: _selectedDate.day + 1),
+                            () => _updateDate(day: _selectedDate.day - 1),
+                          ),
+                          _buildCompactPicker(
+                            'الشهر',
+                            _selectedDate.month,
+                            () => _updateDate(month: _selectedDate.month + 1),
+                            () => _updateDate(month: _selectedDate.month - 1),
+                            isMonth: true,
+                          ),
+                          _buildCompactPicker(
+                            'السنة',
+                            _selectedDate.year,
+                            () => _updateDate(year: _selectedDate.year + 1),
+                            () => _updateDate(year: _selectedDate.year - 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // --- زرّا الإلغاء والموافقة ---
+                    Row(
                       children: [
-                        _buildCompactPicker(
-                          'اليوم',
-                          _selectedDate.day,
-                          () => _updateDate(day: _selectedDate.day + 1),
-                          () => _updateDate(day: _selectedDate.day - 1),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red[700],
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: BorderSide(color: Colors.red.shade300),
+                            ),
+                            child: const Text('إلغاء الأمر',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
                         ),
-                        _buildCompactPicker(
-                          'الشهر',
-                          _selectedDate.month,
-                          () => _updateDate(month: _selectedDate.month + 1),
-                          () => _updateDate(month: _selectedDate.month - 1),
-                          isMonth: true,
-                        ),
-                        _buildCompactPicker(
-                          'السنة',
-                          _selectedDate.year,
-                          () => _updateDate(year: _selectedDate.year + 1),
-                          () => _updateDate(year: _selectedDate.year - 1),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _confirm,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.teal[700],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: const Text('موافق',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // --- زرّا الإلغاء والموافقة ---
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red[700],
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: BorderSide(color: Colors.red.shade300),
-                          ),
-                          child: const Text('إلغاء الأمر',
-                              style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _confirm,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.teal[700],
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          child: const Text('موافق',
-                              style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -468,12 +492,12 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
 
   late Future<SupplierInvoice> _invoiceFuture;
   SupplierInvoice? _invoice;
+  bool _isLoading = true;
 
   // نسبة المعلوم وقيمة العتالة قابلة للكتابة
   final TextEditingController _maloomPercentController =
       TextEditingController();
-  final TextEditingController _portageController =
-      TextEditingController();
+  final FocusNode _maloomPercentFocusNode = FocusNode();
 
   // معلومات الفاتورة المحفوظة (إن وُجدت)
   SupplierBill? _savedBill;
@@ -482,13 +506,28 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
   @override
   void initState() {
     super.initState();
-    _invoiceFuture = _loadInvoice();
+    _invoiceFuture = _loadInvoice().then((val) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      return val;
+    }).catchError((err, st) {
+      debugPrint('❌ Error in initState loadInvoice: $err\n$st');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      throw err;
+    });
   }
 
   @override
   void dispose() {
     _maloomPercentController.dispose();
-    _portageController.dispose();
+    _maloomPercentFocusNode.dispose();
     super.dispose();
   }
 
@@ -524,35 +563,48 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
   }
 
   Future<SupplierInvoice> _loadInvoice() async {
-    final invoice = await _invoicesService.generateSupplierInvoice(
-      widget.selectedDate,
-      widget.supplierName,
-      widget.sValue,
-    );
-    _invoice = invoice;
+    try {
+      final invoice = await _invoicesService.generateSupplierInvoice(
+        widget.selectedDate,
+        widget.supplierName,
+        widget.sValue,
+      );
+      _invoice = invoice;
 
-    // تحميل الفاتورة المحفوظة إن وجدت
-    final saved = await _billStorage.loadBill(
-      widget.selectedDate,
-      widget.supplierName,
-      widget.sValue,
-    );
-    if (saved != null) {
-      _savedBill = saved;
-      invoice.maloomPercent = saved.maloomPercent;
-      invoice.maloomValue = saved.maloomValue;
-      invoice.loadValue = saved.loadValue;
-      invoice.paymentValue = saved.paymentValue;
-      invoice.portageValue = saved.portageValue; // <-- العتالة من الفاتورة المحفوظة
-      _maloomPercentController.text = saved.maloomPercent.toStringAsFixed(2);
-      _portageController.text = saved.portageValue.toStringAsFixed(2);
-    } else {
-      _maloomPercentController.text = '';
-      // إذا لم تكن محفوظة، نأخذ العتالة المحسوبة تلقائياً من دالة generateSupplierInvoice
-      _portageController.text = invoice.portageValue.toStringAsFixed(2);
+      // تحميل الفاتورة المحفوظة إن وجدت
+      final saved = await _billStorage.loadBill(
+        widget.selectedDate,
+        widget.supplierName,
+        widget.sValue,
+      );
+      if (saved != null) {
+        _savedBill = saved;
+        invoice.maloomPercent = saved.maloomPercent;
+        invoice.maloomValue = saved.maloomValue;
+        invoice.loadValue = saved.loadValue;
+        invoice.paymentValue = saved.paymentValue;
+        invoice.portageValue = saved.portageValue; // <-- العتالة من الفاتورة المحفوظة
+        _maloomPercentController.text = saved.maloomPercent.toStringAsFixed(2);
+      } else {
+        _maloomPercentController.text = '';
+      }
+
+      debugPrint('✅ تم تحميل فاتورة المورد بنجاح');
+      return invoice;
+    } catch (e, st) {
+      debugPrint('❌ خطأ في تحميل فاتورة المورد: $e\n$st');
+      // إنشاء نموذج فارغ لتجنب تعليق الشاشة
+      final fallbackInvoice = SupplierInvoice(
+        supplierName: widget.supplierName,
+        sValue: widget.sValue,
+        date: widget.selectedDate,
+        groupedSales: [],
+        comparison: [],
+        totalSalesValue: 0,
+      );
+      _invoice = fallbackInvoice;
+      return fallbackInvoice;
     }
-
-    return invoice;
   }
 
   void _recalculateMaloom() {
@@ -566,14 +618,7 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
     });
   }
 
-  void _recalculatePortage() {
-    final invoice = _invoice;
-    if (invoice == null || _savedBill != null) return;
-    final portage = double.tryParse(_portageController.text) ?? 0;
-    setState(() {
-      invoice.portageValue = portage;
-    });
-  }
+
 
   Future<void> _saveBill() async {
     final invoice = _invoice;
@@ -682,7 +727,7 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
       setState(() {
         _savedBill = null;
         _maloomPercentController.text = '';
-        _portageController.text = '';
+        _isLoading = true;
       });
 
       // إعادة تحميل الفاتورة الافتراضية
@@ -690,6 +735,7 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
       if (mounted) {
         setState(() {
           _invoice = freshInvoice;
+          _isLoading = false;
         });
       }
 
@@ -1104,257 +1150,248 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
       ),
       body: Directionality(
         textDirection: TextDirection.rtl,
-        child: FutureBuilder<SupplierInvoice>(
-          future: _invoiceFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text('حدث خطأ: ${snapshot.error}'));
-            }
-            if (!snapshot.hasData) {
-              return const Center(child: Text('لا توجد بيانات'));
-            }
+        child: _isLoading || _invoice == null
+            ? const Center(child: CircularProgressIndicator())
+            : Builder(
+                builder: (context) {
+                  final invoice = _invoice!;
+                  final bool hasSales = invoice.groupedSales.isNotEmpty;
+                  final bool hasComparison = invoice.comparison.isNotEmpty;
 
-            final invoice = snapshot.data!;
-            final bool hasSales = invoice.groupedSales.isNotEmpty;
-            final bool hasComparison = invoice.comparison.isNotEmpty;
-
-            if (!hasSales && !hasComparison) {
-              return const Center(
-                child: Text(
-                  'لا توجد حركات لهذا المورد وفق الشرط المحدد',
-                  style: TextStyle(fontSize: 18, color: Colors.grey),
-                ),
-              );
-            }
-
-            double salesTotalCount = 0;
-            double salesTotalStanding = 0;
-            double salesTotalNet = 0;
-            double salesTotalValue = 0;
-            for (var line in invoice.groupedSales) {
-              salesTotalCount += line.totalCount;
-              salesTotalStanding += line.totalStanding;
-              salesTotalNet += line.totalNet;
-              salesTotalValue += line.totalValue;
-            }
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                children: [
-
-
-                  // --- جدول المبيعات المجمّع (بدون عنوان "المبيعات المجمّعة") ---
-                  if (hasSales) ...[
-                    Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.indigo.shade200),
-                        borderRadius: BorderRadius.circular(4),
+                  if (!hasSales && !hasComparison) {
+                    return const Center(
+                      child: Text(
+                        'لا توجد حركات لهذا المورد وفق الشرط المحدد',
+                        style: TextStyle(fontSize: 18, color: Colors.grey),
                       ),
-                      child: Column(
-                        children: [
+                    );
+                  }
+
+                  double salesTotalCount = 0;
+                  double salesTotalStanding = 0;
+                  double salesTotalNet = 0;
+                  double salesTotalValue = 0;
+                  for (var line in invoice.groupedSales) {
+                    salesTotalCount += line.totalCount;
+                    salesTotalStanding += line.totalStanding;
+                    salesTotalNet += line.totalNet;
+                    salesTotalValue += line.totalValue;
+                  }
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      children: [
+
+
+                        // --- جدول المبيعات المجمّع (بدون عنوان "المبيعات المجمّعة") ---
+                        if (hasSales) ...[
                           Container(
-                            color: Colors.indigo.shade400,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              children: [
-                                _buildHeaderCell('المادة', 4),
-                                _buildHeaderCell('العدد', 2),
-                                _buildHeaderCell('القائم', 2),
-                                _buildHeaderCell('الصافي', 2),
-                                _buildHeaderCell('السعر', 2),
-                                _buildHeaderCell('الإجمالي', 3),
-                              ],
+                            margin: const EdgeInsets.only(top: 8),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.indigo.shade200),
+                              borderRadius: BorderRadius.circular(4),
                             ),
-                          ),
-                          ...invoice.groupedSales.map((line) => Container(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  border: Border(
-                                      bottom: BorderSide(
-                                          color: Colors.grey.shade300)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    _buildDataCell(line.material, 4),
-                                    _buildDataCell(
-                                        line.totalCount.toStringAsFixed(0), 2),
-                                    _buildDataCell(
-                                        line.totalStanding.toStringAsFixed(2),
-                                        2),
-                                    _buildDataCell(
-                                        line.totalNet.toStringAsFixed(2), 2),
-                                    _buildDataCell(line.price, 2),
-                                    _buildDataCell(
-                                        line.totalValue.toStringAsFixed(2), 3,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.indigo),
-                                  ],
-                                ),
-                              )),
-                          Container(
-                            color: Colors.indigo.shade100,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
+                            child: Column(
                               children: [
-                                _buildDataCell('المجموع', 4,
-                                    fontWeight: FontWeight.bold),
-                                _buildDataCell(
-                                    salesTotalCount.toStringAsFixed(0), 2,
-                                    fontWeight: FontWeight.bold),
-                                _buildDataCell(
-                                    salesTotalStanding.toStringAsFixed(2), 2,
-                                    fontWeight: FontWeight.bold),
-                                _buildDataCell(
-                                    salesTotalNet.toStringAsFixed(2), 2,
-                                    fontWeight: FontWeight.bold),
-                                _buildDataCell('', 2),
-                                _buildDataCell(
-                                    salesTotalValue.toStringAsFixed(2), 3,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo),
+                                Container(
+                                  color: Colors.indigo.shade400,
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      _buildHeaderCell('المادة', 4),
+                                      _buildHeaderCell('العدد', 2),
+                                      _buildHeaderCell('القائم', 2),
+                                      _buildHeaderCell('الصافي', 2),
+                                      _buildHeaderCell('السعر', 2),
+                                      _buildHeaderCell('الإجمالي', 3),
+                                    ],
+                                  ),
+                                ),
+                                ...invoice.groupedSales.map((line) => Container(
+                                      padding:
+                                          const EdgeInsets.symmetric(vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        border: Border(
+                                            bottom: BorderSide(
+                                                color: Colors.grey.shade300)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          _buildDataCell(line.material, 4),
+                                          _buildDataCell(
+                                              line.totalCount.toStringAsFixed(0), 2),
+                                          _buildDataCell(
+                                              line.totalStanding.toStringAsFixed(2),
+                                              2),
+                                          _buildDataCell(
+                                              line.totalNet.toStringAsFixed(2), 2),
+                                          _buildDataCell(line.price, 2),
+                                          _buildDataCell(
+                                              line.totalValue.toStringAsFixed(2), 3,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.indigo),
+                                        ],
+                                      ),
+                                    )),
+                                Container(
+                                  color: Colors.indigo.shade100,
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      _buildDataCell('المجموع', 4,
+                                          fontWeight: FontWeight.bold),
+                                      _buildDataCell(
+                                          salesTotalCount.toStringAsFixed(0), 2,
+                                          fontWeight: FontWeight.bold),
+                                      _buildDataCell(
+                                          salesTotalStanding.toStringAsFixed(2), 2,
+                                          fontWeight: FontWeight.bold),
+                                      _buildDataCell(
+                                          salesTotalNet.toStringAsFixed(2), 2,
+                                          fontWeight: FontWeight.bold),
+                                      _buildDataCell('', 2),
+                                      _buildDataCell(
+                                          salesTotalValue.toStringAsFixed(2), 3,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.indigo),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                  ],
 
-                  // --- جدول المقارنة ---
-                  if (hasComparison) ...[
-                    _buildSectionTitle(
-                        'الاستلام - المبيعات', Colors.orange[800]!),
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.orange.shade200),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Column(
-                        children: [
+                        // --- جدول المقارنة ---
+                        if (hasComparison) ...[
+                          _buildSectionTitle(
+                              'الاستلام - المبيعات', Colors.orange[800]!),
                           Container(
-                            color: Colors.orange.shade300,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.orange.shade200),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Column(
                               children: [
-                                _buildHeaderCell('المادة', 4,
-                                    color: Colors.black87),
-                                _buildHeaderCell('وارد (استلام)', 2,
-                                    color: Colors.black87),
-                                _buildHeaderCell('صادر (مبيعات)', 2,
-                                    color: Colors.black87),
-                                _buildHeaderCell('البايت', 2,
-                                    color: Colors.black87),
+                                Container(
+                                  color: Colors.orange.shade300,
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      _buildHeaderCell('المادة', 4,
+                                          color: Colors.black87),
+                                      _buildHeaderCell('وارد (استلام)', 2,
+                                          color: Colors.black87),
+                                      _buildHeaderCell('صادر (مبيعات)', 2,
+                                          color: Colors.black87),
+                                      _buildHeaderCell('البايت', 2,
+                                          color: Colors.black87),
+                                    ],
+                                  ),
+                                ),
+                                ...invoice.comparison.map((item) => Container(
+                                      padding:
+                                          const EdgeInsets.symmetric(vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        border: Border(
+                                            bottom: BorderSide(
+                                                color: Colors.grey.shade300)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          _buildDataCell(item.material, 4),
+                                          _buildDataCell(
+                                              item.receiptCount.toStringAsFixed(0),
+                                              2),
+                                          _buildDataCell(
+                                              item.salesCount.toStringAsFixed(0), 2),
+                                          _buildDataCell(
+                                            item.difference.toStringAsFixed(0),
+                                            2,
+                                            fontWeight: FontWeight.bold,
+                                            color: item.difference >= 0
+                                                ? Colors.green[800]!
+                                                : Colors.red[800]!,
+                                          ),
+                                        ],
+                                      ),
+                                    )),
                               ],
                             ),
                           ),
-                          ...invoice.comparison.map((item) => Container(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  border: Border(
-                                      bottom: BorderSide(
-                                          color: Colors.grey.shade300)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    _buildDataCell(item.material, 4),
-                                    _buildDataCell(
-                                        item.receiptCount.toStringAsFixed(0),
-                                        2),
-                                    _buildDataCell(
-                                        item.salesCount.toStringAsFixed(0), 2),
-                                    _buildDataCell(
-                                      item.difference.toStringAsFixed(0),
-                                      2,
-                                      fontWeight: FontWeight.bold,
-                                      color: item.difference >= 0
-                                          ? Colors.green[800]!
-                                          : Colors.red[800]!,
-                                    ),
-                                  ],
-                                ),
-                              )),
                         ],
-                      ),
-                    ),
-                  ],
 
-                  // --- لوحة المصاريف (تنسيق أفقي احترافي) ---
-                  _buildExpensesRow(invoice),
+                        // --- لوحة المصاريف (تنسيق أفقي احترافي) ---
+                        _buildExpensesRow(invoice),
 
-                  // --- صافي الفاتورة (في نهاية الشاشة) ---
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16.0),
-                    margin: const EdgeInsets.only(top: 16.0),
-                    decoration: BoxDecoration(
-                      color: Colors.teal.shade700,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'صافي الفاتورة فقط ${invoice.netInvoice.toStringAsFixed(2)} ل.س',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // --- أزرار حفظ / حذف الفاتورة ---
-                  if (_savedBill == null)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _saving ? null : _saveBill,
-                        icon: _saving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.save),
-                        label: const Text('حفظ الفاتورة'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green[700],
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        // --- صافي الفاتورة (في نهاية الشاشة) ---
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16.0),
+                          margin: const EdgeInsets.only(top: 16.0),
+                          decoration: BoxDecoration(
+                            color: Colors.teal.shade700,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'صافي الفاتورة فقط ${invoice.netInvoice.toStringAsFixed(2)} ل.س',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                      ),
-                    )
-                  else
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _deleteBill,
-                        icon: const Icon(Icons.delete),
-                        label: const Text('حذف الفاتورة'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red[700],
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
 
-                  const SizedBox(height: 20),
-                ],
+                        const SizedBox(height: 16),
+
+                        // --- أزرار حفظ / حذف الفاتورة ---
+                        if (_savedBill == null)
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _saving ? null : _saveBill,
+                              icon: _saving
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : const Icon(Icons.save),
+                              label: const Text('حفظ الفاتورة'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green[700],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                            ),
+                          )
+                        else
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _deleteBill,
+                              icon: const Icon(Icons.delete),
+                              label: const Text('حذف الفاتورة'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red[700],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                            ),
+                          ),
+
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
       ),
     );
   }
@@ -1376,14 +1413,10 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
           _buildExpenseItem(
             label: 'المعلوم %',
             value: invoice.maloomPercent.toStringAsFixed(2),
-            isEditable: _savedBill == null, // <-- تم التصحيح
+            isEditable: _savedBill == null,
             controller: _maloomPercentController,
+            focusNode: _maloomPercentFocusNode,
             onChanged: (_) => _recalculateMaloom(),
-          ),
-          _buildExpenseItem(
-            label: 'المعلوم',
-            value: invoice.maloomValue.toStringAsFixed(2),
-            isEditable: false,
           ),
           _buildExpenseItem(
             label: 'الدفعة',
@@ -1398,9 +1431,12 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
           _buildExpenseItem(
             label: 'العتالة',
             value: invoice.portageValue.toStringAsFixed(2),
-            isEditable: _savedBill == null,
-            controller: _portageController,
-            onChanged: (_) => _recalculatePortage(),
+            isEditable: false,
+          ),
+          _buildExpenseItem(
+            label: 'المصاريف',
+            value: invoice.totalExpenses.toStringAsFixed(2),
+            isEditable: false,
           ),
         ],
       ),
@@ -1412,6 +1448,7 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
     required String value,
     bool isEditable = false,
     TextEditingController? controller,
+    FocusNode? focusNode,
     void Function(String)? onChanged,
   }) {
     return Column(
@@ -1443,6 +1480,7 @@ class _SupplierBillScreenState extends State<SupplierBillScreen> {
                   width: 80,
                   child: TextField(
                     controller: controller,
+                    focusNode: focusNode,
                     textAlign: TextAlign.center,
                     textDirection: TextDirection.rtl,
                     keyboardType:

@@ -255,9 +255,14 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
       _addNewRow();
     });
 
-    // طلب التركيز على زر الإضافة
+    // طلب التركيز على حقل المادة في أول صف بعد إنشاء اليومية الجديدة
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _addButtonFocusNode?.requestFocus(); // <-- إضافة
+      if (mounted && rowFocusNodes.isNotEmpty) {
+        _currentFocusRow = 0;
+        _currentFocusCol = 1;
+        FocusScope.of(context).requestFocus(rowFocusNodes[0][1]);
+        _scrollToField(0, 1);
+      }
     });
   }
 
@@ -740,6 +745,16 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
     });
 
     _calculateAllTotals();
+
+    // طلب التركيز على حقل المادة في أول صف بعد تحميل اليومية
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && rowFocusNodes.isNotEmpty) {
+        _currentFocusRow = 0;
+        _currentFocusCol = 1;
+        FocusScope.of(context).requestFocus(rowFocusNodes[0][1]);
+        _scrollToField(0, 1);
+      }
+    });
   }
 
   void _scrollToField(int rowIndex, int colIndex) {
@@ -1446,12 +1461,12 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                         ),
                       ),
                     ),
-                    Container(width: 1, height: 32, color: Colors.white24),
+                    Container(width: 0.5, height: 32, color: Colors.grey),
                     // المورد — فارغ
                     Expanded(
                       child: const SizedBox.shrink(),
                     ),
-                    Container(width: 1, height: 32, color: Colors.white24),
+                    Container(width: 0.5, height: 32, color: Colors.grey),
                     // العدد
                     Expanded(
                       child: Column(
@@ -1480,12 +1495,12 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                         ],
                       ),
                     ),
-                    Container(width: 1, height: 32, color: Colors.white24),
+                    Container(width: 0.5, height: 32, color: Colors.grey),
                     // العبوة — فارغ
                     Expanded(
                       child: const SizedBox.shrink(),
                     ),
-                    Container(width: 1, height: 32, color: Colors.white24),
+                    Container(width: 0.5, height: 32, color: Colors.grey),
                     // القائم
                     Expanded(
                       child: Column(
@@ -1514,7 +1529,7 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                         ],
                       ),
                     ),
-                    Container(width: 1, height: 32, color: Colors.white24),
+                    Container(width: 0.5, height: 32, color: Colors.grey),
                     // الصافي
                     Expanded(
                       child: Column(
@@ -1543,12 +1558,12 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                         ],
                       ),
                     ),
-                    Container(width: 1, height: 32, color: Colors.white24),
+                    Container(width: 0.5, height: 32, color: Colors.grey),
                     // السعر — فارغ
                     Expanded(
                       child: const SizedBox.shrink(),
                     ),
-                    Container(width: 1, height: 32, color: Colors.white24),
+                    Container(width: 0.5, height: 32, color: Colors.grey),
                     // الإجمالي
                     Expanded(
                       child: Column(
@@ -1577,7 +1592,7 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                         ],
                       ),
                     ),
-                    Container(width: 1, height: 32, color: Colors.white24),
+                    Container(width: 0.5, height: 32, color: Colors.grey),
                     // نقدي/دين — فارغ
                     Expanded(
                       child: const SizedBox.shrink(),

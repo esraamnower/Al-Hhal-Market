@@ -216,9 +216,14 @@ class _SalesScreenState extends State<SalesScreen> {
       _addNewRow();
     });
 
-    // طلب التركيز على زر الإضافة بعد إنشاء اليومية الجديدة
+    // طلب التركيز على حقل المادة في أول صف بعد إنشاء اليومية الجديدة
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _addButtonFocusNode?.requestFocus(); // <-- إضافة
+      if (mounted && rowFocusNodes.isNotEmpty) {
+        _currentFocusRow = 0;
+        _currentFocusCol = 1;
+        FocusScope.of(context).requestFocus(rowFocusNodes[0][1]);
+        _scrollToField(0, 1);
+      }
     });
   }
 
@@ -765,6 +770,16 @@ class _SalesScreenState extends State<SalesScreen> {
       }
 
       _hasUnsavedChanges = false;
+    });
+
+    // طلب التركيز على حقل المادة في أول صف بعد تحميل اليومية
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && rowFocusNodes.isNotEmpty) {
+        _currentFocusRow = 0;
+        _currentFocusCol = 1;
+        FocusScope.of(context).requestFocus(rowFocusNodes[0][1]);
+        _scrollToField(0, 1);
+      }
     });
   }
 
